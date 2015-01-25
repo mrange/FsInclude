@@ -47,13 +47,18 @@
     <Reference Include="System.Numerics" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\FsInclude\FsInclude.fs">
+    <Compile Include="..\Common\Common.fs">
+      <Link>Common\Common.fs</Link>
+    </Compile>
+      <Compile Include="..\Common\Disposable.fs">
+          <Link>Common\Disposable.fs</Link>
+      </Compile>
+      <Compile Include="..\FsInclude\FsInclude.fs">
       <Link>FsInclude\FsInclude.fs</Link>
     </Compile>
     <Compile Include="..\Packages\FsLexYacc.fs">
       <Link>Packages\FsLexYacc.fs</Link>
     </Compile>
-    <Compile Include="File.fs" />
     <Compile Include="Program.fs" />
     <None Include="App.config" />
     <None Include="Include.fsx" />
