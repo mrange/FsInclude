@@ -53,7 +53,10 @@
     <Compile Include="..\Common\Disposable.fs">
       <Link>Common\Disposable.fs</Link>
     </Compile>
-    <Compile Include="..\FsInclude\FsInclude.fs">
+      <Compile Include="..\ExtensionMethods\Basic.fs">
+          <Link>ExtensionMethods\Basic.fs</Link>
+      </Compile>
+      <Compile Include="..\FsInclude\FsInclude.fs">
       <Link>FsInclude\FsInclude.fs</Link>
     </Compile>
     <Compile Include="..\Packages\FsLexYacc.fs">
