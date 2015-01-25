@@ -50,17 +50,17 @@
     <Compile Include="..\Common\Common.fs">
       <Link>Common\Common.fs</Link>
     </Compile>
-      <Compile Include="..\Common\Disposable.fs">
-          <Link>Common\Disposable.fs</Link>
-      </Compile>
-      <Compile Include="..\FsInclude\FsInclude.fs">
+    <Compile Include="..\Common\Disposable.fs">
+      <Link>Common\Disposable.fs</Link>
+    </Compile>
+    <Compile Include="..\FsInclude\FsInclude.fs">
       <Link>FsInclude\FsInclude.fs</Link>
     </Compile>
     <Compile Include="..\Packages\FsLexYacc.fs">
       <Link>Packages\FsLexYacc.fs</Link>
     </Compile>
-    <Compile Include="Program.fs" />
     <None Include="App.config" />
+    <Compile Include="Program.fs" />
     <None Include="Include.fsx" />
   </ItemGroup>
   <PropertyGroup>
@@ -79,7 +79,7 @@
     </Otherwise>
   </Choose>
   <Import Project="$(FSharpTargetsPath)" />
-  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it.
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">
   </Target>
