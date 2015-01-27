@@ -13,6 +13,7 @@
 // limitations under the License.
 
 open FsInclude
+open FsInclude.Tests
 
 open System
 open System.IO
@@ -24,12 +25,7 @@ let main argv =
 
     Environment.CurrentDirectory <- AppDomain.CurrentDomain.BaseDirectory
 
-    Log.infof "Testing %d" 1
-
-    use xx = onExitDo <| fun () -> printfn "OnExit"
-
-    printfn "Hello"
-
+    Test.runTestCases (System.Reflection.Assembly.GetExecutingAssembly ())
 
 (*
     use s = File.OpenWrite @"..\..\File.fs"
@@ -43,7 +39,6 @@ let main argv =
             "Lexing.fs"
             "Parsing.fs"
         |]
-*)
 
     use s = File.OpenWrite @"..\..\File.fs"
     use sw = new StreamWriter(s)
@@ -53,9 +48,8 @@ let main argv =
         (Some "Included")
         (Uri "https://raw.githubusercontent.com/mrange/FsInclude/master/src/")
         [|
-            "Common/Disposable.fs"
-            "Common/Disposable.fs"
-            "Common/XXX.fs"
+            "ExtensionMethods/Basic.fs"
         |]
+*)
 
     0

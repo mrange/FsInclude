@@ -53,16 +53,23 @@
     <Compile Include="..\Common\Disposable.fs">
       <Link>Common\Disposable.fs</Link>
     </Compile>
-      <Compile Include="..\ExtensionMethods\Basic.fs">
-          <Link>ExtensionMethods\Basic.fs</Link>
-      </Compile>
-      <Compile Include="..\FsInclude\FsInclude.fs">
+    <Compile Include="..\ExtensionMethods\BasicExtensionMethods.fs">
+      <Link>ExtensionMethods\BasicExtensionMethods.fs</Link>
+    </Compile>
+    <Compile Include="..\Modules\BasicModule.fs">
+      <Link>Modules\BasicModule.fs</Link>
+    </Compile>
+    <Compile Include="..\FsInclude\FsInclude.fs">
       <Link>FsInclude\FsInclude.fs</Link>
     </Compile>
     <Compile Include="..\Packages\FsLexYacc.fs">
       <Link>Packages\FsLexYacc.fs</Link>
     </Compile>
     <None Include="App.config" />
+    <Compile Include="..\Tests\Modules\TestBasicModule.fs">
+        <Link>Tests\Modules2\TestBasicModule.fs</Link>
+    </Compile>
+
     <Compile Include="Program.fs" />
     <None Include="Include.fsx" />
   </ItemGroup>
