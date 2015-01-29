@@ -16,7 +16,7 @@
 
 namespace FsInclude.Tests
 
-module TestStreamModule = 
+module TestStreamModule =
 
     open FsInclude
     open FsInclude.Test
@@ -26,22 +26,12 @@ module TestStreamModule =
 
     let empty = [||]
 
-    let timeIt (action : unit -> 'T) = 
+    let perfTest (count : int) (action : unit -> 'T) =
         let sw = Stopwatch ()
         sw.Start ()
 
         let res = action ()
 
-        sw.Stop ()
-
-        sw.ElapsedMilliseconds, res
-
-    let perfTest (count : int) (action : unit -> 'T) = 
-        let sw = Stopwatch ()
-        sw.Start ()
-
-        let res = action ()
-        
         for i in 2..count do
             ignore <| action ()
 
@@ -49,95 +39,41 @@ module TestStreamModule =
 
         sw.ElapsedMilliseconds, res
 
-            
+
 
     [<Test>]
     let testStreams () =
-        let sum =         
-            RStream.ofRange 0 1 100
-            |> RStream.toSum 0
+        let series f t = (t - f + 1)*(t + f) / 2
 
-        eq 4950 sum
+        let sum =
+            Stream.ofRange 0 1 101
+            |> Stream.toSum 0
 
-        ()
+        eq (series 0 100) sum
 
-//    [<Test>]
-    let testPerf () =
+        let sum =
+            Stream.ofRange 0 1 101
+            |> Stream.take 10
+            |> Stream.toSum 0
 
-        let total = 200000000
-        let outer = 10000
-        let inner = total / outer
+        eq (series 0 10) sum
 
-        let linqSum () = 
-            (Enumerable.Range (0,inner)).Sum ()
+        let sum =
+            Stream.ofRange 0 1 101
+            |> Stream.skip 90
+            |> Stream.toSum 0
 
-        let seqSum () = 
-            Enumerable.Range (0,inner) |> Seq.sum
+        eq (series 90 100) sum
 
-        let rstreamSum () = 
-            RStream.ofRange 0 1 inner |> RStream.toSum 0
-
-        let fstreamSum () = 
-            FStream.ofRange 0 1 inner |> FStream.toSum 0
-
-        let linq_elapsed    , linq_result       = perfTest outer linqSum
-        let seq_elapsed     , seq_result        = perfTest outer seqSum
-        let rstream_elapsed , rstream_result    = perfTest outer rstreamSum
-        let fstream_elapsed , fstream_result    = perfTest outer rstreamSum
-
-        eq linq_result seq_result
-        eq linq_result rstream_result
-        eq linq_result fstream_result
-
-        Test.infof "linq_elapsed: %A, seq_elapsed: %A, rstream_elapsed: %A, fstream_elapsed: %A" linq_elapsed seq_elapsed rstream_elapsed fstream_elapsed
-
-        ()
-
-//    [<Test>]
-    let testPerf2 () =
-        let data = [|1..10000000|] |> Array.map int64
-
-        let seqSum () = 
-            data
-            |> Seq.filter (fun x -> x % 2L = 0L)
-            |> Seq.map (fun x -> x + 1L)
-            |> Seq.sum
-
-        let arraySum () =        
-            data
-            |> Array.filter (fun x -> x % 2L = 0L)
-            |> Array.map (fun x -> x + 1L)
-            |> Array.sum
-
-        let rstreamSum () = 
-            data
-            |> RStream.ofArray
-            |> RStream.filter (fun x -> x % 2L = 0L)
-            |> RStream.map (fun x -> x + 1L)
-            |> RStream.toSum 0L
-
-        let fstreamSum () = 
-            data
-            |> FStream.ofArray
-            |> FStream.filter (fun x -> x % 2L = 0L)
-            |> FStream.map (fun x -> x + 1L)
-            |> FStream.toSum 0L
-
-        let seq_elapsed     , _ = timeIt seqSum
-        let array_elapsed   , _ = timeIt arraySum
-        let rstream_elapsed , _ = timeIt rstreamSum
-        let fstream_elapsed , _ = timeIt fstreamSum
-
-        Test.infof "linq_elapsed: %A, array_elapsed: %A, rstream_elapsed: %A, fstream_elapsed: %A" seq_elapsed array_elapsed rstream_elapsed fstream_elapsed
 
         ()
 
     [<Test>]
-    let testPerf3 () =
+    let testPerf () =
         let total = 50000000
-        let outers= 
+        let outers=
             [|
-                10  
+                10
                 1000
                 100000
                 total / 5
@@ -145,53 +81,64 @@ module TestStreamModule =
 
         for outer in outers do
             let inner = total / outer
+
             let data = [|1..inner|] |> Array.map int64
 
-            let seqSum () = 
+            highlightf "Performance run: Total: %d, Outer: %d, Inner: %d" total outer inner
+
+
+            let forSum () =
+                let mutable sum = 0L
+                for x in data do
+                    if x % 2L = 0L then
+                        sum <- sum + (x + 1L)
+                sum
+
+            let seqSum () =
                 data
                 |> Seq.filter (fun x -> x % 2L = 0L)
                 |> Seq.map (fun x -> x + 1L)
                 |> Seq.sum
 
-            let arraySum () =        
+            let arraySum () =
                 data
                 |> Array.filter (fun x -> x % 2L = 0L)
                 |> Array.map (fun x -> x + 1L)
                 |> Array.sum
 
-            let rstreamSum () = 
+            let streamSum () =
                 data
-                |> RStream.ofArray
-                |> RStream.filter (fun x -> x % 2L = 0L)
-                |> RStream.map (fun x -> x + 1L)
-                |> RStream.toSum 0L
+                |> Stream.ofArray
+                |> Stream.filter (fun x -> x % 2L = 0L)
+                |> Stream.map (fun x -> x + 1L)
+                |> Stream.toSum 0L
 
-            let fstreamSum () = 
-                data
-                |> FStream.ofArray
-                |> FStream.filter (fun x -> x % 2L = 0L)
-                |> FStream.map (fun x -> x + 1L)
-                |> FStream.toSum 0L
+            let testCases =
+                [|
+                    "Seq"       , seqSum
+                    "For"       , forSum
+                    "Stream"    , streamSum
+                |]
 
-            let seq_elapsed     , _ = perfTest outer seqSum
-            let array_elapsed   , _ = perfTest outer arraySum
-            let rstream_elapsed , _ = perfTest outer rstreamSum
-            let fstream_elapsed , _ = perfTest outer fstreamSum
+            let testResults =
+                testCases
+                |> Array.map (fun (name, test) ->
+                    let elapsed, result = perfTest outer test
+                    name, elapsed, result
+                    )
 
-            Test.infof 
-                "%d, %d: linq_elapsed: %A, array_elapsed: %A, rstream_elapsed: %A, fstream_elapsed: %A" 
-                outer
-                inner
-                seq_elapsed 
-                array_elapsed 
-                rstream_elapsed 
-                fstream_elapsed
+            let _, seq_elapsed, seq_result  = testResults.[0]
+
+            for name, elapsed, actual in testResults do
+                infof "TestResult for: %A - Time: %d ms" name elapsed
+                eq seq_result actual
+                gte seq_elapsed elapsed
 
         ()
 
 
 (*
-        let fstreamSum () = 
+        let fstreamSum () =
             data
             |> FStream.ofArray
             |> FStream.filter (fun x -> x % 2L = 0L)

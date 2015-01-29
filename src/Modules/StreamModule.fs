@@ -16,110 +16,122 @@ namespace FsInclude
 
 module Stream =
 
-    type Receiver<'T>   = 'T -> bool 
+    type Context() =
+        member val IsCancellable    = false with get, set
+        member val Continue         = true  with get, set
+
+    type Receiver<'T>   = Context*('T -> unit)
     type Stream<'T>     = Receiver<'T> -> unit
 
 
-    let inline filter (f : 'T -> bool) (s : Stream<'T>) : Stream<'T> = 
-        fun receiver ->
-            let r v = 
+    let inline filter (f : 'T -> bool) (s : Stream<'T>) : Stream<'T> =
+        fun (context,receiver) ->
+            let inline r v =
                 if (f v) then receiver v
-                else true
-            s r
+            s (context,r)
 
-    let inline map (f : 'T -> 'U) (s : Stream<'T>) : Stream<'U> = 
-        fun receiver ->
-            let r v = receiver (f v)
-            s r
+    let inline map (f : 'T -> 'U) (s : Stream<'T>) : Stream<'U> =
+        fun (context,receiver) ->
+            let inline r v = receiver (f v)
+            s (context,r)
 
-    let inline ofType (s : Stream<'T>) : Stream<'U> = 
-        fun receiver ->
-            let r (v : 'T) =
+    let inline ofType (s : Stream<'T>) : Stream<'U> =
+        fun (context,receiver) ->
+            let inline r (v : 'T) =
                 match box v with
                 | :? 'U as u -> receiver u
-                | _ -> true
-            s r
+                | _ -> ()
+            s (context,r)
 
-    let inline take (n : int) (s : Stream<'T>) : Stream<'T> = 
-        fun receiver ->
+    let inline take (n : int) (s : Stream<'T>) : Stream<'T> =
+        fun (context,receiver) ->
+            context.IsCancellable <- true
             let rn = ref n
-            let r v = 
-                if !rn > 0 then
+            let inline r v =
+                if !rn >= 0 then
                     rn := !rn - 1
                     receiver v
                 else
-                    false
-            s r
+                    context.Continue <- false
+            s (context,r)
 
-    let inline skip (n : int) (s : Stream<'T>) : Stream<'T> = 
-        fun receiver ->
+    let inline skip (n : int) (s : Stream<'T>) : Stream<'T> =
+        fun (context,receiver) ->
             let rn = ref n
-            let r v = 
+            let inline r v =
                 if !rn > 0 then
                     rn := !rn - 1
-                    true
                 else
                     receiver v
-            s r
+            s (context,r)
 
-    let inline toArray (s : Stream<'T>) : 'T [] = 
+    let inline toArray (s : Stream<'T>) : 'T [] =
         let ra = ResizeArray<_> ()
-        let r v = ra.Add v; true
-        s r
+        let c = Context()
+        let inline r v = ra.Add v
+        s (c,r)
         ra.ToArray ()
 
-    let inline toList (s : Stream<'T>) : 'T list = 
+    let inline toList (s : Stream<'T>) : 'T list =
         let l = ref List.empty
-        let r v = l := v::!l; true
-        s r
+        let c = Context()
+        let inline r v = l := v::!l
+        s (c,r)
         List.rev !l
 
-    let inline toSum (initial : 'T) (s : Stream<'T>) : 'T = 
+    let inline toSum (initial : 'T) (s : Stream<'T>) : 'T =
         let sum = ref initial
-        let r v = sum := !sum + v; true
-        s r
+        let c = Context()
+        let inline r v = sum := !sum + v
+        s (c,r)
         !sum
 
-    let inline ofRange (f : 'T) (inc : 'T) (t : 'T) : Stream<'T> =
-        fun receiver ->
-            let mutable i = f
-            while i < t && (receiver i) do
-                i <- i + inc
+    let inline ofRange (inclusiveBegin : 'T) (increment : 'T) (exclusiveEnd : 'T) : Stream<'T> =
+        fun (context,receiver) ->
+            if context.IsCancellable then
+                let mutable i = inclusiveBegin
+                while i < exclusiveEnd && (receiver i; context.Continue) do
+                    i <- i + increment
+            else
+                let mutable i = inclusiveBegin
+                while i < exclusiveEnd do
+                    receiver i
+                    i <- i + increment
 
     let inline ofArray (a : 'T []) : Stream<'T> =
-        fun receiver ->
-            let l = a.Length
-            let mutable i = 0
-            while i < l && (receiver a.[i]) do
-                i <- i + 1
+        fun (context,receiver) ->
+            if context.IsCancellable then
+                let l = a.Length
+                let mutable i = 0
+                while i < l && (receiver a.[i]; context.Continue) do
+                    i <- i + 1
+            else
+                for v in a do
+                    receiver v
 
     let inline ofList (l : 'T list) : Stream<'T> =
-        fun receiver ->
-            let mutable i = l
-            while i.IsEmpty && (receiver i.Head) do
-                i <- i.Tail
+        fun (context,receiver) ->
+            if context.IsCancellable then
+                let mutable i = l
+                while i.IsEmpty && (receiver i.Head; context.Continue) do
+                    i <- i.Tail
+            else
+                let mutable i = l
+                while i.IsEmpty do
+                    receiver i.Head
+                    i <- i.Tail
+
 
     let inline ofSeq (l : seq<'T>) : Stream<'T> =
-        fun receiver ->
-            use e = l.GetEnumerator ()
-            while e.MoveNext () && (receiver e.Current) do
-                ()
-
-    let inline firstOrValue (v : 'T) (s : Stream<'T>) : 'T =
-        let rv = ref v
-        let a v =
-            rv := v
-            false
-        s a
-        !rv
-
-    let inline first (s : Stream<'T>) : 'T option =
-        let rv = ref None
-        let a v =
-            rv := Some v
-            false
-        s a
-        !rv
+        fun (context,receiver) ->
+            if context.IsCancellable then
+                use e = l.GetEnumerator ()
+                while e.MoveNext () && (receiver e.Current; context.Continue) do
+                    ()
+            else
+                use e = l.GetEnumerator ()
+                while e.MoveNext () do
+                    receiver e.Current
 
 (*
 
@@ -132,20 +144,20 @@ type FStream<'T> = FReceiver<'T> -> unit
 
 module FStream =
 
-    let inline filter (f : 'T -> bool) (s : FStream<'T>) : FStream<'T> = 
+    let inline filter (f : 'T -> bool) (s : FStream<'T>) : FStream<'T> =
         fun receiver ->
-            let r = 
+            let r =
                 {
                     new FReceiver<'T> with
-                        override x.Receive v = 
+                        override x.Receive v =
                             if (f v) then receiver.Receive v
                             else true
                 }
             s r
 
-    let inline map (f : 'T -> 'U) (s : FStream<'T>) : FStream<'U> = 
+    let inline map (f : 'T -> 'U) (s : FStream<'T>) : FStream<'U> =
         fun receiver ->
-            let r = 
+            let r =
                 {
                     new FReceiver<'T> with
                         override x.Receive v = receiver.Receive (f v)
@@ -153,25 +165,25 @@ module FStream =
             s r
 
     let inline ofArray (a : 'T []) : FStream<'T> =
-        fun receiver -> 
+        fun receiver ->
             let l = a.Length
             let mutable i = 0
             while i < l && (receiver.Receive a.[i]) do
                 i <- i + 1
 
     let inline ofRange (f : 'T) (inc : 'T) (t : 'T) : FStream<'T> =
-        fun receiver -> 
+        fun receiver ->
             let mutable i = f
             while i < t && receiver.Receive i do
                 i <- i + inc
 
 
-    let inline toSum (initial : 'T) (s : FStream<'T>) : 'T = 
+    let inline toSum (initial : 'T) (s : FStream<'T>) : 'T =
         let sum = ref initial
-        let r = 
+        let r =
             {
                 new FReceiver<'T> with
-                    override x.Receive v = 
+                    override x.Receive v =
                         sum := !sum + v
                         true
             }

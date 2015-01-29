@@ -16,7 +16,7 @@
 
 namespace FsInclude.Tests
 
-module TestBasicModule = 
+module TestBasicModule =
 
     open FsInclude
     open FsInclude.Test
@@ -26,4 +26,3 @@ module TestBasicModule =
 
         ()
 
-    

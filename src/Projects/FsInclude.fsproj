@@ -65,9 +65,6 @@
     <Compile Include="..\FsInclude\FsInclude.fs">
       <Link>FsInclude\FsInclude.fs</Link>
     </Compile>
-    <Compile Include="..\Packages\FsLexYacc.fs">
-      <Link>Packages\FsLexYacc.fs</Link>
-    </Compile>
     <None Include="App.config" />
     <Compile Include="..\Test\TestModule.fs">
       <Link>Test\TestModule.fs</Link>

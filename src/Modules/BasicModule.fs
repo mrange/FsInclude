@@ -16,28 +16,28 @@ namespace FsInclude
 
 module Opt =
 
-    let lift1 
-        (c  : 'T0 -> 'T ) 
-        (v0 : 'T0 option) 
+    let lift1
+        (c  : 'T0 -> 'T )
+        (v0 : 'T0 option)
         : 'T option =
         match v0 with
         | Some s0 -> Some <| c s0
         | _ -> None
 
     let lift2
-        (c  : 'T0 -> 'T1 -> 'T ) 
-        (v0 : 'T0 option) 
-        (v1 : 'T1 option) 
+        (c  : 'T0 -> 'T1 -> 'T )
+        (v0 : 'T0 option)
+        (v1 : 'T1 option)
         : 'T option =
         match v0, v1 with
         | Some s0, Some s1 -> Some <| c s0 s1
         | _ -> None
 
     let lift3
-        (c  : 'T0 -> 'T1 -> 'T2 -> 'T ) 
-        (v0 : 'T0 option) 
-        (v1 : 'T1 option) 
-        (v2 : 'T2 option) 
+        (c  : 'T0 -> 'T1 -> 'T2 -> 'T )
+        (v0 : 'T0 option)
+        (v1 : 'T1 option)
+        (v2 : 'T2 option)
         : 'T option =
         match v0, v1, v2 with
         | Some s0, Some s1, Some s2 -> Some <| c s0 s1 s2

@@ -14,7 +14,7 @@
 
 namespace FsInclude
 
-module Test = 
+module Test =
     open System
     open System.Reflection
     open System.Text
@@ -29,7 +29,7 @@ module Test =
 
     let mutable failureCount = 0
 
-    let colorprint (cc : ConsoleColor) (prelude : string) (msg : string) = 
+    let colorprint (cc : ConsoleColor) (prelude : string) (msg : string) =
         let old = Console.ForegroundColor
         Console.ForegroundColor <- cc
         try
@@ -37,7 +37,7 @@ module Test =
             Console.WriteLine msg
         finally
             Console.ForegroundColor <- old
-            
+
 
     let success     = colorprint ConsoleColor.Green "SUCCESS   : "
     let highlight   = colorprint ConsoleColor.White "HIGHLIGHT : "
@@ -56,32 +56,32 @@ module Test =
     let failf (format : StringFormat<'T, unit>) : 'T =
         ksprintf fail format
 
-    let eq (expected : 'T) (actual : 'T) : bool = 
+    let eq (expected : 'T) (actual : 'T) : bool =
         if expected = actual then
             true
         else
             failf "EXPECTED_EQ: %A = %A" expected actual
             false
 
-    let lt (expected : 'T) (actual : 'T) : bool = 
-        if expected < actual then
+    let lte (expected : 'T) (actual : 'T) : bool =
+        if expected <= actual then
             true
         else
-            failf "EXPECTED_LT: %A < %A" expected actual
+            failf "EXPECTED_LTE: %A <= %A" expected actual
             false
 
-    let gt (expected : 'T) (actual : 'T) : bool = 
-        if expected > actual then
+    let gte (expected : 'T) (actual : 'T) : bool =
+        if expected >= actual then
             true
         else
-            failf "EXPECTED_GT: %A > %A" expected actual
+            failf "EXPECTED_GT: %A >= %A" expected actual
             false
 
 
-    let runTestCases (assembly : Assembly) : bool = 
+    let runTestCases (assembly : Assembly) : bool =
         failureCount <- 0
 
-        let testMethods = 
+        let testMethods =
             assembly.GetTypes ()
             |> Seq.collect (fun t -> t.GetMethods (BindingFlags.Static ||| BindingFlags.Public))
             |> Seq.filter (fun mi -> mi.GetCustomAttribute<TestAttribute>() <> null)
