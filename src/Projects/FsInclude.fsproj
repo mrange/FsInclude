@@ -35,7 +35,7 @@
     <WarningLevel>3</WarningLevel>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <DocumentationFile>bin\Release\FsInclude.XML</DocumentationFile>
-    <Prefer32Bit>true</Prefer32Bit>
+    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="mscorlib" />
@@ -59,6 +59,9 @@
     <Compile Include="..\Modules\BasicModule.fs">
       <Link>Modules\BasicModule.fs</Link>
     </Compile>
+    <Compile Include="..\Modules\StreamModule.fs">
+      <Link>Modules\StreamModule.fs</Link>
+    </Compile>
     <Compile Include="..\FsInclude\FsInclude.fs">
       <Link>FsInclude\FsInclude.fs</Link>
     </Compile>
@@ -66,10 +69,15 @@
       <Link>Packages\FsLexYacc.fs</Link>
     </Compile>
     <None Include="App.config" />
-    <Compile Include="..\Tests\Modules\TestBasicModule.fs">
-        <Link>Tests\Modules2\TestBasicModule.fs</Link>
+    <Compile Include="..\Test\TestModule.fs">
+      <Link>Test\TestModule.fs</Link>
     </Compile>
-
+    <Compile Include="..\FsIncludeTests\TestModules\TestBasicModule.fs">
+      <Link>FsIncludeTests\TestModules\TestBasicModule.fs</Link>
+    </Compile>
+    <Compile Include="..\FsIncludeTests\TestModules\TestStreamModule.fs">
+      <Link>FsIncludeTests\TestModules\TestStreamModule.fs</Link>
+    </Compile>
     <Compile Include="Program.fs" />
     <None Include="Include.fsx" />
   </ItemGroup>

@@ -25,7 +25,8 @@ let main argv =
 
     Environment.CurrentDirectory <- AppDomain.CurrentDomain.BaseDirectory
 
-    Test.runTestCases (System.Reflection.Assembly.GetExecutingAssembly ())
+    if not <| Test.runTestCases (System.Reflection.Assembly.GetExecutingAssembly ()) then
+        Environment.ExitCode <- 9999
 
 (*
     use s = File.OpenWrite @"..\..\File.fs"

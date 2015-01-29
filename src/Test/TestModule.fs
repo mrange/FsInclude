@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-namespace FsInclude.Tests
+namespace FsInclude
 
 module Test = 
     open System
@@ -29,21 +29,26 @@ module Test =
 
     let mutable failureCount = 0
 
-    let success (msg : string) = 
-        Console.Write "SUCCESS : "
-        Console.WriteLine msg
+    let colorprint (cc : ConsoleColor) (prelude : string) (msg : string) = 
+        let old = Console.ForegroundColor
+        Console.ForegroundColor <- cc
+        try
+            Console.Write prelude
+            Console.WriteLine msg
+        finally
+            Console.ForegroundColor <- old
+            
 
-    let info (msg : string) = 
-        Console.Write "INFO    : "
-        Console.WriteLine msg
-
-    let fail (msg : string) = 
-        failureCount <- failureCount + 1
-        Console.Write "FAILURE : "
-        Console.WriteLine msg
+    let success     = colorprint ConsoleColor.Green "SUCCESS   : "
+    let highlight   = colorprint ConsoleColor.White "HIGHLIGHT : "
+    let info        = colorprint ConsoleColor.Gray  "INFO      : "
+    let fail        = colorprint ConsoleColor.Red   "FAILURE   : "
 
     let successf (format : StringFormat<'T, unit>) : 'T =
         ksprintf success format
+
+    let highlightf (format : StringFormat<'T, unit>) : 'T =
+        ksprintf highlight format
 
     let infof (format : StringFormat<'T, unit>) : 'T =
         ksprintf info format
@@ -52,11 +57,26 @@ module Test =
         ksprintf fail format
 
     let eq (expected : 'T) (actual : 'T) : bool = 
-        if expected <> actual then
+        if expected = actual then
+            true
+        else
             failf "EXPECTED_EQ: %A = %A" expected actual
             false
-        else
+
+    let lt (expected : 'T) (actual : 'T) : bool = 
+        if expected < actual then
             true
+        else
+            failf "EXPECTED_LT: %A < %A" expected actual
+            false
+
+    let gt (expected : 'T) (actual : 'T) : bool = 
+        if expected > actual then
+            true
+        else
+            failf "EXPECTED_GT: %A > %A" expected actual
+            false
+
 
     let runTestCases (assembly : Assembly) : bool = 
         failureCount <- 0
@@ -83,23 +103,3 @@ module Test =
         else
             success "All tests passed"
             true
-        
-
-open Test
-
-
-module TestBasicModule = 
-
-    open FsInclude
-
-    [<Test>]
-    let testStreams () =
-        let sum =         
-            Streams.fromRange 0 1 100
-            |> Streams.sum 0
-
-        eq 100 sum
-
-        ()
-
-    
