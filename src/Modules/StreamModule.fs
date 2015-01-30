@@ -14,7 +14,7 @@
 
 namespace FsInclude
 
-module Stream =
+module internal Stream =
 
     type Context() =
         member val IsCancellable    = false with get, set

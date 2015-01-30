@@ -14,18 +14,18 @@
 
 namespace FsInclude
 
-type LogLevel =
+type internal LogLevel =
     | Info
     | Warning
     | Error
     | Exception
 
-type ILog =
+type internal ILog =
     interface
         abstract LogMessage: LogLevel*string -> unit
     end
 
-module Log =
+module internal Log =
 
     open Microsoft.FSharp.Core.Printf
     open System.Text

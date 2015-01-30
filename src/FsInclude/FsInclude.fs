@@ -14,7 +14,7 @@
 
 namespace FsInclude
 
-module Processor =
+module internal Processor =
 
     open System
     open System.Collections.Generic

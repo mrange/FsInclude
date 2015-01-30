@@ -15,7 +15,7 @@
 namespace FsInclude
 
 [<AutoOpen>]
-module BasicExtensions =
+module internal BasicExtensions =
 
     open System
     open System.Collections.Generic

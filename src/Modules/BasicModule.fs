@@ -14,7 +14,7 @@
 
 namespace FsInclude
 
-module Opt =
+module internal Opt =
 
     let lift1
         (c  : 'T0 -> 'T )

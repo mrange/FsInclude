@@ -16,7 +16,7 @@
 
 namespace FsInclude.Tests
 
-module TestStreamModule =
+module internal TestStreamModule =
 
     open FsInclude
     open FsInclude.Test

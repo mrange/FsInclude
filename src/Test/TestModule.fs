@@ -14,7 +14,7 @@
 
 namespace FsInclude
 
-module Test =
+module internal Test =
     open System
     open System.Reflection
     open System.Text
@@ -83,8 +83,8 @@ module Test =
 
         let testMethods =
             assembly.GetTypes ()
-            |> Seq.collect (fun t -> t.GetMethods (BindingFlags.Static ||| BindingFlags.Public))
-            |> Seq.filter (fun mi -> mi.GetCustomAttribute<TestAttribute>() <> null)
+            |> Seq.collect (fun t -> t.GetMethods (BindingFlags.Static ||| BindingFlags.Public ||| BindingFlags.NonPublic))
+            |> Seq.filter (fun mi -> mi.GetCustomAttribute<TestAttribute> () <> null)
             |> Seq.toArray
 
         for testMethod in testMethods do

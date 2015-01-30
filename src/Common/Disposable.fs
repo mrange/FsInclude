@@ -17,7 +17,7 @@
 namespace FsInclude
 
 [<AbstractClass>]
-type BaseDisposable() =
+type internal BaseDisposable() =
     [<DefaultValue>]
     val mutable isDisposed : int
 
@@ -31,11 +31,11 @@ type BaseDisposable() =
 
     abstract OnDispose: unit -> unit
 
-type ActionDisposable(action : unit -> unit) =
+type internal ActionDisposable(action : unit -> unit) =
     inherit BaseDisposable()
 
     override x.OnDispose () = action ()
 
-module Disposable =
+module internal Disposable =
     let onExitDo (action : unit -> unit) : System.IDisposable = upcast new ActionDisposable(action)
 

@@ -16,7 +16,7 @@
 
 namespace FsInclude.Tests
 
-module TestBasicModule =
+module internal TestBasicModule =
 
     open FsInclude
     open FsInclude.Test
