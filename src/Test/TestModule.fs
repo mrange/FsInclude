@@ -56,26 +56,35 @@ module internal Test =
     let failf (format : StringFormat<'T, unit>) : 'T =
         ksprintf fail format
 
-    let eq (expected : 'T) (actual : 'T) : bool =
+    let eq (expected : 'T) (actual : 'T) (msg : string) : bool =
         if expected = actual then
             true
         else
-            failf "EXPECTED_EQ: %A = %A" expected actual
+            failf "EXPECTED_EQ: %A = %A, %s" expected actual msg
             false
 
-    let lte (expected : 'T) (actual : 'T) : bool =
+    let eqf (expected : 'T) (actual : 'T) (format : StringFormat<'U,bool>) : 'U =
+        ksprintf (eq expected actual) format
+
+    let lte (expected : 'T) (actual : 'T) (msg : string) : bool =
         if expected <= actual then
             true
         else
-            failf "EXPECTED_LTE: %A <= %A" expected actual
+            failf "EXPECTED_LTE: %A <= %A, %s" expected actual msg
             false
 
-    let gte (expected : 'T) (actual : 'T) : bool =
+    let ltef (expected : 'T) (actual : 'T) (format : StringFormat<'U, bool>) : 'U =
+        ksprintf (lte expected actual) format
+
+    let gte (expected : 'T) (actual : 'T) (msg : string) : bool =
         if expected >= actual then
             true
         else
-            failf "EXPECTED_GT: %A >= %A" expected actual
+            failf "EXPECTED_GTE (): %A >= %A, %s" expected actual msg
             false
+
+    let gtef (expected : 'T) (actual : 'T) (format : StringFormat<'U, bool>) : 'U =
+        ksprintf (gte expected actual) format
 
     let runTestCases (assembly : Assembly) : bool =
         failureCount <- 0

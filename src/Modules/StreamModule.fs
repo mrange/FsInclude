@@ -41,7 +41,7 @@ module internal Stream =
             result := !result || f v
             c.Continue <- not !result
         s (c,r)
-        not !result
+        !result
 
     let inline append (s1 : Stream<'T>) (s2 : Stream<'T>) : Stream<'T> =
         fun (context,receiver) ->
@@ -79,7 +79,7 @@ module internal Stream =
         fun (context,receiver) ->
             ()
 
-    let inline enumerator (s : Stream<'T>) : Stream<int*'T> =
+    let inline enumerate (s : Stream<'T>) : Stream<int*'T> =
         fun (context,receiver) ->
             let i = ref 0
             let inline r v = 

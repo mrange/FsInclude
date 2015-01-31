@@ -37,55 +37,190 @@ module internal TestStreamModule =
 
         sw.ElapsedMilliseconds, res
 
-    let empty   = [||]
-    let ints    = [|3;1;4;1;5;9;2;6;5;4|]   
-
     let intData =
         [|
-            empty
-            ints
+            "No ints"   , [||]
+            "1 int"     , [|100|]
+            "10 ints"   , [|3;1;4;1;5;9;2;6;5;4|]
         |]
+
+    let intVariants = [|0;5;10|]
+
+    let testIntData (test : string -> int[] -> 'T) = 
+        for description, data in intData do
+                ignore <| test description data
+
+    let testIntVariants (test : string -> int[] -> int -> 'T) = 
+        for description, data in intData do
+            for variant in intVariants do
+                ignore <| test description data variant
+
+    let testIntDataPairs (test : string -> int[] -> string -> int[] -> 'T) = 
+        for description1, data1 in intData do
+            for description2, data2 in intData do
+                ignore <| test description1 data1 description2 data2
 
     [<Test>]
     let testAll () =
-        let variants = [|0;5;10|]
-        for data in intData do
-            for variant in variants do
-                let expected    = ints |> Seq.forall (fun v -> v > variant)
-                let actual      = ints |> Stream.ofArray |> Stream.all (fun v -> v > variant)
-                eq expected actual
+        testIntVariants <| fun description data limit ->
+            let test v = v > limit
+            let expected    = data |> Seq.forall test
+            let actual      = data |> Stream.ofArray |> Stream.all test
+            eqf expected actual "all: %A - limit %d" description limit
 
         ()
+
+    [<Test>]
+    let testAny () =
+        testIntVariants <| fun description data limit ->
+            let test v = v > limit
+            let expected    = data |> Seq.exists test
+            let actual      = data |> Stream.ofArray |> Stream.any test
+            eqf expected actual "any: %A - limit %d" description limit
+
+        ()
+
+    [<Test>]
+    let testAppend () =
+        testIntDataPairs <| fun description1 data1 description2 data2 ->
+            let expected    = 
+                data1 
+                |> Seq.append data2 
+                |> Seq.toArray
+            let actual      = 
+                data1 |> Stream.ofArray 
+                |> Stream.append (data2 |> Stream.ofArray) 
+                |> Stream.toArray
+            eqf expected actual "append: %A * %A" description1 description2
+
+        ()
+
+    [<Test>]
+    let testChoose () =
+        testIntVariants <| fun description data limit ->
+            let test v = if v > limit then Some (v.ToString()) else None
+            let expected    = data |> Seq.choose test |> Seq.toArray
+            let actual      = data |> Stream.ofArray |> Stream.choose test |> Stream.toArray
+            eqf expected actual "choose: %A - limit %d" description limit
+
+        ()
+
+    // TODO: collect
+    // TODO: concat
+    
+    [<Test>]
+    let testDelay () =
+        testIntData <| fun description data ->
+            let expected    = Seq.delay (fun () -> upcast data) |> Seq.toArray
+            let actual      = Stream.delay (fun () -> data |> Stream.ofArray) |> Stream.toArray
+            eqf expected actual "delay: %A" description
+
+        ()
+
+    [<Test>]
+    let testEmpty () =
+        let expected    = [||]
+        let actual      = Stream.empty |> Stream.toArray
+        eq expected actual "empty"
+
+        ()
+
+    [<Test>]
+    let testEnumerate () =
+        testIntData <| fun description data ->
+            let expected    = data |> Seq.mapi (fun i v -> i,v) |> Seq.toArray
+            let actual      = data |> Stream.ofArray |> Stream.enumerate |> Stream.toArray
+            eqf expected actual "enumerate: %A" description
+
+        ()
+
+    [<Test>]
+    let testFilter () =
+        testIntVariants <| fun description data limit ->
+            let test v = v > limit
+            let expected    = data |> Seq.filter test |> Seq.toArray
+            let actual      = data |> Stream.ofArray |> Stream.filter test |> Stream.toArray
+            eqf expected actual "filter: %A - limit %d" description limit
+
+        ()
+
+    // TODO: fold
+    // TODO: iter
+    // TODO: isEmpty
+
+    [<Test>]
+    let testMap () =
+        testIntVariants <| fun description data limit ->
+            let map v = (v + limit).ToString ()
+            let expected    = data |> Seq.map map |> Seq.toArray
+            let actual      = data |> Stream.ofArray |> Stream.map map |> Stream.toArray
+            eqf expected actual "map: %A - limit %d" description limit
+
+        ()
+
+    // TODO: ofRange
+
+    [<Test>]
+    let testOfArray () =
+        testIntData <| fun description data ->
+            let expected    = data
+            let actual      = data |> Stream.ofArray |> Stream.toArray
+            eqf expected actual "ofArray: %A" description
+
+        testIntVariants <| fun description data limit ->
+            let expected    = data |> Seq.take limit |> Seq.toArray
+            let actual      = data |> Stream.ofArray |> Stream.take limit |> Stream.toArray
+            eqf expected actual "ofArray: %A - limit %d" description limit
+
+        ()
+
+    [<Test>]
+    let testOfList () =
+        testIntData <| fun description data ->
+            let expected    = data
+            let actual      = data |> Seq.toList |> Stream.ofList |> Stream.toArray
+            eqf expected actual "ofArray: %A" description
+
+        testIntVariants <| fun description data limit ->
+            let expected    = data |> Seq.take limit |> Seq.toArray
+            let actual      = data |> Seq.toList |> Stream.ofList |> Stream.take limit |> Stream.toArray
+            eqf expected actual "ofArray: %A - limit %d" description limit
+
+        ()
+
     [<Test>]
     let testStreams () =
         let series f t = (t - f + 1)*(t + f) / 2
+        
+        let test f t sum = 
+            eqf (series f t) sum "Sum %d..%d" f t
 
         let sum =
             Stream.ofRange 0 1 101
             |> Stream.toSum 0
 
-        eq (series 0 100) sum
+        test 0 100 sum
 
         let sum =
             Stream.ofRange 0 1 101
             |> Stream.take 10
             |> Stream.toSum 0
 
-        eq (series 0 10) sum
+        test 0 10 sum
 
         let sum =
             Stream.ofRange 0 1 101
             |> Stream.skip 90
             |> Stream.toSum 0
 
-        eq (series 90 100) sum
+        test 90 100 sum
 
 
         ()
 
     [<Test>]
     let testPerf () =
-        let total = 50000000
+        let total = 10000000
         let outers=
             [|
                 10
@@ -146,7 +281,7 @@ module internal TestStreamModule =
 
             for name, elapsed, actual in testResults do
                 infof "TestResult for: %A - Time: %d ms" name elapsed
-                eq seq_result actual
-                gte seq_elapsed elapsed
+                eqf seq_result actual "Reslut for %A" name
+                gtef seq_elapsed elapsed "Performance for %A" name
 
         ()
