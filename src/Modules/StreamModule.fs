@@ -23,6 +23,69 @@ module internal Stream =
     type Receiver<'T>   = Context*('T -> unit)
     type Stream<'T>     = Receiver<'T> -> unit
 
+    let inline all (f : 'T -> bool) (s : Stream<'T>) : bool =
+        let result  = ref true
+        let c       = Context()
+        c.IsCancellable <- true
+        let inline r v =
+            result := !result && f v
+            c.Continue <- !result
+        s (c,r)
+        !result
+
+    let inline any (f : 'T -> bool) (s : Stream<'T>) : bool =
+        let result  = ref false
+        let c       = Context()
+        c.IsCancellable <- true
+        let inline r v =
+            result := !result || f v
+            c.Continue <- not !result
+        s (c,r)
+        not !result
+
+    let inline append (s1 : Stream<'T>) (s2 : Stream<'T>) : Stream<'T> =
+        fun (context,receiver) ->
+            s1 (context, receiver)
+            s2 (context, receiver)
+
+    let inline choose (f : 'T -> 'U option) (s : Stream<'T>) : Stream<'U> =
+        fun (context,receiver) ->
+            let inline r v =
+                let o = f v
+                match o with
+                | Some vv -> receiver vv
+                | _ -> ()
+            s (context,r)
+
+    let inline collect (f : 'T -> Stream<'U>) (s : Stream<'T>) : Stream<'U> =
+        fun (context,receiver) ->
+            let inline r v =
+                let is = f v
+                is (context, receiver)
+            s (context,r)
+
+    let inline concat (s : Stream<Stream<'T>>) : Stream<'T> =
+        fun (context,receiver) ->
+            let inline r v = 
+                v (context, receiver)
+            s (context, r)
+
+    let inline delay (ds : unit -> Stream<'T>) : Stream<'T> =
+        fun (context,receiver) ->
+            let s = ds ()
+            s (context, receiver)
+
+    let empty : Stream<'T> =
+        fun (context,receiver) ->
+            ()
+
+    let inline enumerator (s : Stream<'T>) : Stream<int*'T> =
+        fun (context,receiver) ->
+            let i = ref 0
+            let inline r v = 
+                receiver (!i, v)
+                i := !i + 1
+            s (context,r)
 
     let inline filter (f : 'T -> bool) (s : Stream<'T>) : Stream<'T> =
         fun (context,receiver) ->
@@ -30,61 +93,34 @@ module internal Stream =
                 if (f v) then receiver v
             s (context,r)
 
+    let inline fold (f : 'State -> 'T -> 'State) (initial : 'State) (s : Stream<'T>) : 'State =
+        let state   = ref initial
+        let c       = Context()
+        let inline r v =
+            state := f !state v
+        s (c,r)
+        !state
+
+    let inline iter (f : 'T -> unit) (s : Stream<'T>) : unit =
+        let c = Context()
+        let inline r v =
+            f v
+        s (c,r)
+
+    let inline isEmpty (s : Stream<'T>) : bool =
+        let result  = ref true
+        let c       = Context()
+        c.IsCancellable <- true
+        let inline r _ =
+            result := false
+            c.Continue <- false
+        s (c,r)
+        !result
+
     let inline map (f : 'T -> 'U) (s : Stream<'T>) : Stream<'U> =
         fun (context,receiver) ->
             let inline r v = receiver (f v)
             s (context,r)
-
-    let inline ofType (s : Stream<'T>) : Stream<'U> =
-        fun (context,receiver) ->
-            let inline r (v : 'T) =
-                match box v with
-                | :? 'U as u -> receiver u
-                | _ -> ()
-            s (context,r)
-
-    let inline take (n : int) (s : Stream<'T>) : Stream<'T> =
-        fun (context,receiver) ->
-            context.IsCancellable <- true
-            let rn = ref n
-            let inline r v =
-                if !rn >= 0 then
-                    rn := !rn - 1
-                    receiver v
-                else
-                    context.Continue <- false
-            s (context,r)
-
-    let inline skip (n : int) (s : Stream<'T>) : Stream<'T> =
-        fun (context,receiver) ->
-            let rn = ref n
-            let inline r v =
-                if !rn > 0 then
-                    rn := !rn - 1
-                else
-                    receiver v
-            s (context,r)
-
-    let inline toArray (s : Stream<'T>) : 'T [] =
-        let ra = ResizeArray<_> ()
-        let c = Context()
-        let inline r v = ra.Add v
-        s (c,r)
-        ra.ToArray ()
-
-    let inline toList (s : Stream<'T>) : 'T list =
-        let l = ref List.empty
-        let c = Context()
-        let inline r v = l := v::!l
-        s (c,r)
-        List.rev !l
-
-    let inline toSum (initial : 'T) (s : Stream<'T>) : 'T =
-        let sum = ref initial
-        let c = Context()
-        let inline r v = sum := !sum + v
-        s (c,r)
-        !sum
 
     let inline ofRange (inclusiveBegin : 'T) (increment : 'T) (exclusiveEnd : 'T) : Stream<'T> =
         fun (context,receiver) ->
@@ -132,6 +168,62 @@ module internal Stream =
                 use e = l.GetEnumerator ()
                 while e.MoveNext () do
                     receiver e.Current
+
+    let inline skip (n : int) (s : Stream<'T>) : Stream<'T> =
+        fun (context,receiver) ->
+            let rn = ref n
+            let inline r v =
+                if !rn > 0 then
+                    rn := !rn - 1
+                else
+                    receiver v
+            s (context,r)
+
+    let inline singleton (v : 'T) : Stream<'T> =
+        fun (context,receiver) ->
+            receiver v
+
+    let inline take (n : int) (s : Stream<'T>) : Stream<'T> =
+        fun (context,receiver) ->
+            context.IsCancellable <- true
+            let rn = ref n
+            let inline r v =
+                if !rn >= 0 then
+                    rn := !rn - 1
+                    receiver v
+                else
+                    context.Continue <- false
+            s (context,r)
+
+    let inline toArray (s : Stream<'T>) : 'T [] =
+        let ra = ResizeArray<_> ()
+        let c = Context()
+        let inline r v = ra.Add v
+        s (c,r)
+        ra.ToArray ()
+
+    let inline toList (s : Stream<'T>) : 'T list =
+        let l = ref List.empty
+        let c = Context()
+        let inline r v = l := v::!l
+        s (c,r)
+        List.rev !l
+
+    let inline toSum (initial : 'T) (s : Stream<'T>) : 'T =
+        let sum = ref initial
+        let c = Context()
+        let inline r v = sum := !sum + v
+        s (c,r)
+        !sum
+
+    let inline tryCast (s : Stream<'T>) : Stream<'U> =
+        fun (context,receiver) ->
+            let inline r (v : 'T) =
+                match box v with
+                | :? 'U as u -> receiver u
+                | _ -> ()
+            s (context,r)
+
 
 (*
 

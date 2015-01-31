@@ -24,8 +24,6 @@ module internal TestStreamModule =
     open System.Diagnostics
     open System.Linq
 
-    let empty = [||]
-
     let perfTest (count : int) (action : unit -> 'T) =
         let sw = Stopwatch ()
         sw.Start ()
@@ -39,8 +37,25 @@ module internal TestStreamModule =
 
         sw.ElapsedMilliseconds, res
 
+    let empty   = [||]
+    let ints    = [|3;1;4;1;5;9;2;6;5;4|]   
 
+    let intData =
+        [|
+            empty
+            ints
+        |]
 
+    [<Test>]
+    let testAll () =
+        let variants = [|0;5;10|]
+        for data in intData do
+            for variant in variants do
+                let expected    = ints |> Seq.forall (fun v -> v > variant)
+                let actual      = ints |> Stream.ofArray |> Stream.all (fun v -> v > variant)
+                eq expected actual
+
+        ()
     [<Test>]
     let testStreams () =
         let series f t = (t - f + 1)*(t + f) / 2
@@ -135,15 +150,3 @@ module internal TestStreamModule =
                 gte seq_elapsed elapsed
 
         ()
-
-
-(*
-        let fstreamSum () =
-            data
-            |> FStream.ofArray
-            |> FStream.filter (fun x -> x % 2L = 0L)
-            |> FStream.map (fun x -> x + 1L)
-            |> FStream.sum
-
-
-*)

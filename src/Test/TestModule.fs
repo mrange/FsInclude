@@ -77,7 +77,6 @@ module internal Test =
             failf "EXPECTED_GT: %A >= %A" expected actual
             false
 
-
     let runTestCases (assembly : Assembly) : bool =
         failureCount <- 0
 
