@@ -46,16 +46,16 @@ module internal TestStreamModule =
 
     let intVariants = [|0;5;10|]
 
-    let testIntData (test : string -> int[] -> 'T) = 
+    let testIntData (test : string -> int[] -> 'T) =
         for description, data in intData do
                 ignore <| test description data
 
-    let testIntVariants (test : string -> int[] -> int -> 'T) = 
+    let testIntVariants (test : string -> int[] -> int -> 'T) =
         for description, data in intData do
             for variant in intVariants do
                 ignore <| test description data variant
 
-    let testIntDataPairs (test : string -> int[] -> string -> int[] -> 'T) = 
+    let testIntDataPairs (test : string -> int[] -> string -> int[] -> 'T) =
         for description1, data1 in intData do
             for description2, data2 in intData do
                 ignore <| test description1 data1 description2 data2
@@ -83,13 +83,13 @@ module internal TestStreamModule =
     [<Test>]
     let testAppend () =
         testIntDataPairs <| fun description1 data1 description2 data2 ->
-            let expected    = 
-                data1 
-                |> Seq.append data2 
+            let expected    =
+                data1
+                |> Seq.append data2
                 |> Seq.toArray
-            let actual      = 
-                data1 |> Stream.ofArray 
-                |> Stream.append (data2 |> Stream.ofArray) 
+            let actual      =
+                data1 |> Stream.ofArray
+                |> Stream.append (data2 |> Stream.ofArray)
                 |> Stream.toArray
             eqf expected actual "append: %A * %A" description1 description2
 
@@ -107,7 +107,7 @@ module internal TestStreamModule =
 
     // TODO: collect
     // TODO: concat
-    
+
     [<Test>]
     let testDelay () =
         testIntData <| fun description data ->
@@ -191,8 +191,8 @@ module internal TestStreamModule =
     [<Test>]
     let testStreams () =
         let series f t = (t - f + 1)*(t + f) / 2
-        
-        let test f t sum = 
+
+        let test f t sum =
             eqf (series f t) sum "Sum %d..%d" f t
 
         let sum =

@@ -66,7 +66,7 @@ module internal Stream =
 
     let inline concat (s : Stream<Stream<'T>>) : Stream<'T> =
         fun (context,receiver) ->
-            let inline r v = 
+            let inline r v =
                 v (context, receiver)
             s (context, r)
 
@@ -82,7 +82,7 @@ module internal Stream =
     let inline enumerate (s : Stream<'T>) : Stream<int*'T> =
         fun (context,receiver) ->
             let i = ref 0
-            let inline r v = 
+            let inline r v =
                 receiver (!i, v)
                 i := !i + 1
             s (context,r)
