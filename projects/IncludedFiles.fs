@@ -1,4 +1,4 @@
-// @@@ INCLUDE: https://raw.githubusercontent.com/mrange/FsInclude/master/src/Modules/BasicModule.fs
+﻿// @@@ INCLUDE: https://raw.githubusercontent.com/mrange/FsInclude/master/src/Modules/BasicModule.fs
 // @@@ BEGIN_DOCUMENT: https://raw.githubusercontent.com/mrange/FsInclude/master/src/Modules/BasicModule.fs
 // Copyright 2015 Mårten Rånge
 //
