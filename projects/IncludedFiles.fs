@@ -437,14 +437,14 @@ module internal Disposable =
 
 // @@@ END_DOCUMENT: https://raw.githubusercontent.com/mrange/FsInclude/master/src/Common/Disposable.fs
 namespace Included
-module IncludeMetaData = 
+module IncludeMetaData =
     [<Literal>]
-    let IncludeDate = "2015-02-02T20:14:42" 
+    let IncludeDate = "2015-02-02T20:14:42"
     [<Literal>]
-    let Include_0 = @"https://raw.githubusercontent.com/mrange/FsInclude/master/src/Modules/BasicModule.fs" 
+    let Include_0 = @"https://raw.githubusercontent.com/mrange/FsInclude/master/src/Modules/BasicModule.fs"
     [<Literal>]
-    let Include_1 = @"https://raw.githubusercontent.com/mrange/FsInclude/master/src/Modules/StreamModule.fs" 
+    let Include_1 = @"https://raw.githubusercontent.com/mrange/FsInclude/master/src/Modules/StreamModule.fs"
     [<Literal>]
-    let Include_2 = @"https://raw.githubusercontent.com/mrange/FsInclude/master/src/Common/Disposable.fs" 
+    let Include_2 = @"https://raw.githubusercontent.com/mrange/FsInclude/master/src/Common/Disposable.fs"
     [<Literal>]
-    let Include_3 = @"https://raw.githubusercontent.com/mrange/FsInclude/master/src/Common/Common.fs" 
+    let Include_3 = @"https://raw.githubusercontent.com/mrange/FsInclude/master/src/Common/Common.fs"
