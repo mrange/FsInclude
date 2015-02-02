@@ -69,8 +69,21 @@ module internal TestStreamModule =
             for description2, data2 in intData do
                 ignore <| test description1 data1 description2 data2
 
+    let testOfVariant (name : string) (streamCreator : int[] -> Stream.Stream<int>) =
+        testIntData <| fun description data ->
+            let expected    = data
+            let actual      = data |> streamCreator |> Stream.toArray
+            eqf expected actual "%s: %A" name description
+
+        testIntVariants <| fun description data limit ->
+            let expected    = data.Take limit |> Seq.toArray
+            let actual      = data |> streamCreator |> Stream.take limit |> Stream.toArray
+            eqf expected actual "ofArray: %A - limit %d" description limit
+
+        ()
+
     [<Test>]
-    let testAll () =
+    let ``testing Stream.all`` () =
         testIntVariants <| fun description data limit ->
             let test v = v > limit
             let expected    = data |> Seq.forall test
@@ -80,7 +93,7 @@ module internal TestStreamModule =
         ()
 
     [<Test>]
-    let testAny () =
+    let ``testing Stream.any`` () =
         testIntVariants <| fun description data limit ->
             let test v = v > limit
             let expected    = data |> Seq.exists test
@@ -90,7 +103,7 @@ module internal TestStreamModule =
         ()
 
     [<Test>]
-    let testAppend () =
+    let ``testing Stream.append`` () =
         testIntDataPairs <| fun description1 data1 description2 data2 ->
             let expected    =
                 data1
@@ -105,7 +118,7 @@ module internal TestStreamModule =
         ()
 
     [<Test>]
-    let testChoose () =
+    let ``testing Stream.choose`` () =
         testIntVariants <| fun description data limit ->
             let test v = if v > limit then Some (v.ToString()) else None
             let expected    = data |> Seq.choose test |> Seq.toArray
@@ -115,7 +128,7 @@ module internal TestStreamModule =
         ()
 
     [<Test>]
-    let testCollect () =
+    let ``testing Stream.collect`` () =
         testNestedIntData <| fun descripton data ->
             let expected    =
                 data
@@ -131,7 +144,7 @@ module internal TestStreamModule =
         ()
 
     [<Test>]
-    let testConcat () =
+    let ``testing Stream.concat`` () =
         testNestedIntData <| fun descripton data ->
             let expected    =
                 data
@@ -148,7 +161,7 @@ module internal TestStreamModule =
         ()
 
     [<Test>]
-    let testDelay () =
+    let ``testing Stream.delay`` () =
         testIntData <| fun description data ->
             let expected    = Seq.delay (fun () -> upcast data) |> Seq.toArray
             let actual      = Stream.delay (fun () -> data |> Stream.ofArray) |> Stream.toArray
@@ -157,7 +170,7 @@ module internal TestStreamModule =
         ()
 
     [<Test>]
-    let testEmpty () =
+    let ``testing Stream.empty`` () =
         let expected    = [||]
         let actual      = Stream.empty |> Stream.toArray
         eq expected actual "empty"
@@ -165,7 +178,7 @@ module internal TestStreamModule =
         ()
 
     [<Test>]
-    let testEnumerate () =
+    let ``testing Stream.enumerate`` () =
         testIntData <| fun description data ->
             let expected    = data |> Seq.mapi (fun i v -> i,v) |> Seq.toArray
             let actual      = data |> Stream.ofArray |> Stream.enumerate |> Stream.toArray
@@ -174,7 +187,7 @@ module internal TestStreamModule =
         ()
 
     [<Test>]
-    let testFilter () =
+    let ``testing Stream.filter`` () =
         testIntVariants <| fun description data limit ->
             let test v = v > limit
             let expected    = data |> Seq.filter test |> Seq.toArray
@@ -184,7 +197,7 @@ module internal TestStreamModule =
         ()
 
     [<Test>]
-    let testFold () =
+    let ``testing Stream.fold`` () =
         testIntData <| fun description data ->
             let f (s : int) (v : int) =
                 s + v
@@ -195,7 +208,7 @@ module internal TestStreamModule =
         ()
 
     [<Test>]
-    let testIter () =
+    let ``testing Stream.iter`` () =
         testIntData <| fun description data ->
             let expected    = ref 0
             let actual      = ref 0
@@ -208,7 +221,7 @@ module internal TestStreamModule =
         ()
 
     [<Test>]
-    let testIsEmpty () =
+    let ``testing Stream.isEmpty`` () =
         testIntData <| fun description data ->
             let expected    = data |> Seq.isEmpty
             let actual      = data |> Stream.ofArray |> Stream.isEmpty
@@ -217,7 +230,7 @@ module internal TestStreamModule =
         ()
 
     [<Test>]
-    let testMap () =
+    let ``testing Stream.map`` () =
         testIntVariants <| fun description data limit ->
             let map v = (v + limit).ToString ()
             let expected    = data |> Seq.map map |> Seq.toArray
@@ -228,39 +241,26 @@ module internal TestStreamModule =
 
     // TODO: ofRange
 
-    let testOfVariant (name : string) (streamCreator : int[] -> Stream.Stream<int>) =
-        testIntData <| fun description data ->
-            let expected    = data
-            let actual      = data |> streamCreator |> Stream.toArray
-            eqf expected actual "%s: %A" name description
-
-        testIntVariants <| fun description data limit ->
-            let expected    = data.Take limit |> Seq.toArray
-            let actual      = data |> streamCreator |> Stream.take limit |> Stream.toArray
-            eqf expected actual "ofArray: %A - limit %d" description limit
-
-        ()
-
     [<Test>]
-    let testOfArray () =
+    let ``testing Stream.ofArray`` () =
         testOfVariant "ofArray" Stream.ofArray
 
         ()
 
     [<Test>]
-    let testOfList () =
+    let ``testing Stream.ofList`` () =
         testOfVariant "ofList" (Seq.toList >> Stream.ofList)
 
         ()
 
     [<Test>]
-    let testOfSeq () =
+    let ``testing Stream.ofSeq`` () =
         testOfVariant "ofSeq" Stream.ofSeq
 
         ()
 
     [<Test>]
-    let testSkip () =
+    let ``testing Stream.skip`` () =
         testIntVariants <| fun description data limit ->
             let expected    = data.Skip limit |> Seq.toArray
             let actual      = data |> Stream.ofArray |> Stream.skip limit |> Stream.toArray
@@ -269,7 +269,7 @@ module internal TestStreamModule =
         ()
 
     [<Test>]
-    let testSingleton () =
+    let ``testing Stream.singleton`` () =
         let expected    = [|4|]
         let actual      = 4 |> Stream.singleton |> Stream.toArray
 
@@ -278,7 +278,7 @@ module internal TestStreamModule =
         ()
 
     [<Test>]
-    let testTake () =
+    let ``testing Stream.take`` () =
         testIntVariants <| fun description data limit ->
             let expected    = data.Take limit |> Seq.toArray
             let actual      = data |> Stream.ofArray |> Stream.take limit |> Stream.toArray
@@ -287,7 +287,7 @@ module internal TestStreamModule =
         ()
 
     [<Test>]
-    let testToArray () =
+    let ``testing Stream.toArray`` () =
         testIntData <| fun description data ->
             let expected    = data
             let actual      = data |> Stream.ofArray |> Stream.toArray
@@ -296,7 +296,7 @@ module internal TestStreamModule =
         ()
 
     [<Test>]
-    let testToList () =
+    let ``testing Stream.toList`` () =
         testIntData <| fun description data ->
             let expected    = data |> Seq.toList
             let actual      = data |> Stream.ofArray |> Stream.toList
@@ -305,7 +305,7 @@ module internal TestStreamModule =
         ()
 
     [<Test>]
-    let testToSum () =
+    let ``testing Stream.toSum`` () =
         testIntData <| fun description data ->
             let expected    = data |> Seq.sum
             let actual      = data |> Stream.ofArray |> Stream.toSum 0
@@ -321,7 +321,7 @@ module internal TestStreamModule =
         ()
 
     [<Test>]
-    let testStreams () =
+    let ``testing basic Stream use cases`` () =
         let series f t = (t - f + 1)*(t + f) / 2
 
         let test f t sum =
@@ -351,7 +351,7 @@ module internal TestStreamModule =
         ()
 
     [<Test>]
-    let testPerf () =
+    let ``testing Stream performance`` () =
         let total = 10000000
         let outers=
             [|

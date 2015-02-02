@@ -16,6 +16,11 @@ namespace FsInclude
 
 module internal Opt =
 
+    let inline valueOrDefault (defaultValue : 'T) (v : 'T option) : 'T =
+        match v with
+        | Some vv   -> vv
+        | _         -> defaultValue
+
     let lift1
         (c  : 'T0 -> 'T )
         (v0 : 'T0 option)
@@ -41,4 +46,27 @@ module internal Opt =
         : 'T option =
         match v0, v1, v2 with
         | Some s0, Some s1, Some s2 -> Some <| c s0 s1 s2
+        | _ -> None
+
+    let lift4
+        (c  : 'T0 -> 'T1 -> 'T2 -> 'T3 -> 'T )
+        (v0 : 'T0 option)
+        (v1 : 'T1 option)
+        (v2 : 'T2 option)
+        (v3 : 'T3 option)
+        : 'T option =
+        match v0, v1, v2, v3 with
+        | Some s0, Some s1, Some s2, Some s3 -> Some <| c s0 s1 s2 s3
+        | _ -> None
+
+    let lift5
+        (c  : 'T0 -> 'T1 -> 'T2 -> 'T3 -> 'T4 -> 'T )
+        (v0 : 'T0 option)
+        (v1 : 'T1 option)
+        (v2 : 'T2 option)
+        (v3 : 'T3 option)
+        (v4 : 'T4 option)
+        : 'T option =
+        match v0, v1, v2, v3, v4 with
+        | Some s0, Some s1, Some s2, Some s3, Some s4 -> Some <| c s0 s1 s2 s3 s4
         | _ -> None
