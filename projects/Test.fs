@@ -1,4 +1,4 @@
-ï»¿// Copyright 2015 MÃ¥rten RÃ¥nge
+// Copyright 2015 Mårten Rånge
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,24 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#load "../src/FsInclude/FsInclude.fs"
-
 open System
 open System.IO
 
-let IncludeFiles () =
-
-    use s = File.OpenWrite @"IncludedFiles.fs"
-    use sw = new StreamWriter(s)
-
-    FsInclude.Processor.DownloadWebFilesToStream
-        sw
-        (Some "Included")
-        (Uri "https://raw.githubusercontent.com/mrange/FsInclude/master/src/")
-        [|
-            "Modules/BasicModule.fs"
-            "Modules/StreamModule.fs"
-            "Common/Disposable.fs"
-        |]
-
-do IncludeFiles ()
+[<EntryPoint>]
+let main argv =
+    0

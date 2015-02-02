@@ -5,14 +5,14 @@
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>29710579-8db7-462e-a4be-2a6798485b54</ProjectGuid>
+    <ProjectGuid>fd5c868a-8ba9-4e48-a6ac-8b7e302f7159</ProjectGuid>
     <OutputType>Exe</OutputType>
-    <RootNamespace>FsInclude</RootNamespace>
-    <AssemblyName>FsInclude</AssemblyName>
+    <RootNamespace>TestFsInclude</RootNamespace>
+    <AssemblyName>TestFsInclude</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <TargetFSharpCoreVersion>4.3.1.0</TargetFSharpCoreVersion>
-    <Name>FsInclude</Name>
+    <Name>TestFsInclude</Name>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -23,7 +23,7 @@
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <WarningLevel>3</WarningLevel>
     <PlatformTarget>AnyCPU</PlatformTarget>
-    <DocumentationFile>bin\Debug\FsInclude.XML</DocumentationFile>
+    <DocumentationFile>bin\Debug\TestFsInclude.XML</DocumentationFile>
     <Prefer32Bit>true</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
@@ -34,8 +34,8 @@
     <DefineConstants>TRACE</DefineConstants>
     <WarningLevel>3</WarningLevel>
     <PlatformTarget>AnyCPU</PlatformTarget>
-    <DocumentationFile>bin\Release\FsInclude.XML</DocumentationFile>
-    <Prefer32Bit>false</Prefer32Bit>
+    <DocumentationFile>bin\Release\TestFsInclude.XML</DocumentationFile>
+    <Prefer32Bit>true</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="mscorlib" />
@@ -47,35 +47,12 @@
     <Reference Include="System.Numerics" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\src\Common\Common.fs">
-      <Link>Common\Common.fs</Link>
-    </Compile>
-    <Compile Include="..\src\Common\Disposable.fs">
-      <Link>Common\Disposable.fs</Link>
-    </Compile>
-    <Compile Include="..\src\ExtensionMethods\BasicExtensionMethods.fs">
-      <Link>ExtensionMethods\BasicExtensionMethods.fs</Link>
-    </Compile>
-    <Compile Include="..\src\Modules\BasicModule.fs">
-      <Link>Modules\BasicModule.fs</Link>
-    </Compile>
-    <Compile Include="..\src\Modules\StreamModule.fs">
-      <Link>Modules\StreamModule.fs</Link>
-    </Compile>
-    <Compile Include="..\src\FsInclude\FsInclude.fs">
-      <Link>FsInclude\FsInclude.fs</Link>
-    </Compile>
+    <Compile Include="IncludedFiles.fs" />
+    <Compile Include="Test.fs" />
     <None Include="App.config" />
-    <Compile Include="..\src\Test\TestModule.fs">
-      <Link>Test\TestModule.fs</Link>
-    </Compile>
-    <Compile Include="..\tests\TestModules\TestBasicModule.fs">
-      <Link>FsIncludeTests\TestModules\TestBasicModule.fs</Link>
-    </Compile>
-    <Compile Include="..\tests\TestModules\TestStreamModule.fs">
-      <Link>FsIncludeTests\TestModules\TestStreamModule.fs</Link>
-    </Compile>
-    <Compile Include="Program.fs" />
+    <None Include="Include.fsx">
+      <Link>Include.fsx</Link>
+    </None>
   </ItemGroup>
   <PropertyGroup>
     <MinimumVisualStudioVersion Condition="'$(MinimumVisualStudioVersion)' == ''">11</MinimumVisualStudioVersion>
@@ -93,7 +70,7 @@
     </Otherwise>
   </Choose>
   <Import Project="$(FSharpTargetsPath)" />
-  <!-- To modify your build process, add your task inside one of the targets below and uncomment it.
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">
   </Target>
