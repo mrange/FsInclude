@@ -216,15 +216,6 @@ module internal Stream =
         s (c,r)
         !sum
 
-    let inline tryCast (s : Stream<'T>) : Stream<'U> =
-        fun (context,receiver) ->
-            let inline r (v : 'T) =
-                match box v with
-                | :? 'U as u -> receiver u
-                | _ -> ()
-            s (context,r)
-
-
 (*
 
 type FReceiver<'T> =

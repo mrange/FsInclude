@@ -50,6 +50,15 @@ module internal TestStreamModule =
         for description, data in intData do
                 ignore <| test description data
 
+    let testNestedIntData (test : string -> int[][] -> 'T) =
+        for variant in 0..5 do
+            let data : int [][] =
+                [|
+                    for y in 1..variant ->
+                        [|for x in 2..y -> x|]
+                |]
+            ignore <| test (sprintf "Nested, variant: %d" variant) data
+
     let testIntVariants (test : string -> int[] -> int -> 'T) =
         for description, data in intData do
             for variant in intVariants do
@@ -105,8 +114,38 @@ module internal TestStreamModule =
 
         ()
 
-    // TODO: collect
-    // TODO: concat
+    [<Test>]
+    let testCollect () =
+        testNestedIntData <| fun descripton data ->
+            let expected    =
+                data
+                |> Seq.collect (fun vs -> vs)
+                |> Seq.toArray
+            let actual      =
+                data
+                |> Stream.ofArray
+                |> Stream.collect (fun vs -> vs |> Stream.ofArray)
+                |> Stream.toArray
+            eqf expected actual "collect: %A" descripton
+
+        ()
+
+    [<Test>]
+    let testConcat () =
+        testNestedIntData <| fun descripton data ->
+            let expected    =
+                data
+                |> Seq.concat
+                |> Seq.toArray
+            let actual      =
+                data
+                |> Stream.ofArray
+                |> Stream.map Stream.ofArray
+                |> Stream.concat
+                |> Stream.toArray
+            eqf expected actual "concat: %A" descripton
+
+        ()
 
     [<Test>]
     let testDelay () =
@@ -144,9 +183,38 @@ module internal TestStreamModule =
 
         ()
 
-    // TODO: fold
-    // TODO: iter
-    // TODO: isEmpty
+    [<Test>]
+    let testFold () =
+        testIntData <| fun description data ->
+            let f (s : int) (v : int) =
+                s + v
+            let expected    = data |> Seq.fold f 0
+            let actual      = data |> Stream.ofArray |> Stream.fold f 0
+            eqf expected actual "fold: %A" description
+
+        ()
+
+    [<Test>]
+    let testIter () =
+        testIntData <| fun description data ->
+            let expected    = ref 0
+            let actual      = ref 0
+            let f (s : int ref) (v : int) =
+                s := !s + v
+            data |> Seq.iter (f expected)
+            data |> Stream.ofArray |> Stream.iter (f actual)
+            eqf expected actual "iter: %A" description
+
+        ()
+
+    [<Test>]
+    let testIsEmpty () =
+        testIntData <| fun description data ->
+            let expected    = data |> Seq.isEmpty
+            let actual      = data |> Stream.ofArray |> Stream.isEmpty
+            eqf expected actual "isEmpty: %A" description
+
+        ()
 
     [<Test>]
     let testMap () =
@@ -165,7 +233,7 @@ module internal TestStreamModule =
             let expected    = data
             let actual      = data |> streamCreator |> Stream.toArray
             eqf expected actual "%s: %A" name description
-        
+
         testIntVariants <| fun description data limit ->
             let expected    = data.Take limit |> Seq.toArray
             let actual      = data |> streamCreator |> Stream.take limit |> Stream.toArray
