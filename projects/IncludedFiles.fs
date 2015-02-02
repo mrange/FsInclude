@@ -439,7 +439,7 @@ module internal Disposable =
 namespace Included
 module IncludeMetaData =
     [<Literal>]
-    let IncludeDate = "2015-02-02T20:14:42"
+    let IncludeDate = "2015-02-02T20:27:04"
     [<Literal>]
     let Include_0 = @"https://raw.githubusercontent.com/mrange/FsInclude/master/src/Modules/BasicModule.fs"
     [<Literal>]

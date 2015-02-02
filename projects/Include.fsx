@@ -16,11 +16,12 @@
 
 open System
 open System.IO
+open System.Text
 
 let IncludeFiles () =
 
     use s = File.OpenWrite @"IncludedFiles.fs"
-    use sw = new StreamWriter(s)
+    use sw = new StreamWriter(s, Encoding.UTF8)
 
     FsInclude.Processor.DownloadWebFilesToStream
         sw

@@ -154,16 +154,16 @@ module internal Processor =
         if context.ParentNamespaces.Length > 0 then
             appender (0*indent) <| sprintf "namespace %s" context.ParentNamespace
 
-        appender (0*indent) "module IncludeMetaData = "
+        appender (0*indent) "module IncludeMetaData ="
 
-        appender (1*indent) <| """[<Literal>]"""
-        appender (1*indent) <| sprintf """let IncludeDate = "%s" """ (DateTime.Now.ToString "yyyy-MM-ddTHH:mm:ss")
+        appender (1*indent) <| "[<Literal>]"
+        appender (1*indent) <| sprintf "let IncludeDate = \"%s\"" (DateTime.Now.ToString "yyyy-MM-ddTHH:mm:ss")
 
         context.Includes
             |> Seq.iteri
                 (fun i fp ->
-                    appender (1*indent) <| """[<Literal>]"""
-                    appender (1*indent) <| sprintf """let Include_%d = @"%s" """ i fp
+                    appender (1*indent) <| "[<Literal>]"
+                    appender (1*indent) <| sprintf "let Include_%d = @\"%s\"" i fp
                 )
 
     let CreateResolver  (pathAppender   : string -> string -> string)
