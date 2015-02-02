@@ -149,11 +149,11 @@ module internal Stream =
         fun (context,receiver) ->
             if context.IsCancellable then
                 let mutable i = l
-                while i.IsEmpty && (receiver i.Head; context.Continue) do
+                while not i.IsEmpty && (receiver i.Head; context.Continue) do
                     i <- i.Tail
             else
                 let mutable i = l
-                while i.IsEmpty do
+                while not i.IsEmpty do
                     receiver i.Head
                     i <- i.Tail
 
@@ -188,7 +188,7 @@ module internal Stream =
             context.IsCancellable <- true
             let rn = ref n
             let inline r v =
-                if !rn >= 0 then
+                if !rn > 0 then
                     rn := !rn - 1
                     receiver v
                 else

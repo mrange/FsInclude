@@ -160,31 +160,95 @@ module internal TestStreamModule =
 
     // TODO: ofRange
 
-    [<Test>]
-    let testOfArray () =
+    let testOfVariant (name : string) (streamCreator : int[] -> Stream.Stream<int>) =
         testIntData <| fun description data ->
             let expected    = data
-            let actual      = data |> Stream.ofArray |> Stream.toArray
-            eqf expected actual "ofArray: %A" description
-
+            let actual      = data |> streamCreator |> Stream.toArray
+            eqf expected actual "%s: %A" name description
+        
         testIntVariants <| fun description data limit ->
-            let expected    = data |> Seq.take limit |> Seq.toArray
-            let actual      = data |> Stream.ofArray |> Stream.take limit |> Stream.toArray
+            let expected    = data.Take limit |> Seq.toArray
+            let actual      = data |> streamCreator |> Stream.take limit |> Stream.toArray
             eqf expected actual "ofArray: %A - limit %d" description limit
 
         ()
 
     [<Test>]
+    let testOfArray () =
+        testOfVariant "ofArray" Stream.ofArray
+
+        ()
+
+    [<Test>]
     let testOfList () =
+        testOfVariant "ofList" (Seq.toList >> Stream.ofList)
+
+        ()
+
+    [<Test>]
+    let testOfSeq () =
+        testOfVariant "ofSeq" Stream.ofSeq
+
+        ()
+
+    [<Test>]
+    let testSkip () =
+        testIntVariants <| fun description data limit ->
+            let expected    = data.Skip limit |> Seq.toArray
+            let actual      = data |> Stream.ofArray |> Stream.skip limit |> Stream.toArray
+            eqf expected actual "skip: %A - limit %d" description limit
+
+        ()
+
+    [<Test>]
+    let testSingleton () =
+        let expected    = [|4|]
+        let actual      = 4 |> Stream.singleton |> Stream.toArray
+
+        eq expected actual "singleTon"
+
+        ()
+
+    [<Test>]
+    let testTake () =
+        testIntVariants <| fun description data limit ->
+            let expected    = data.Take limit |> Seq.toArray
+            let actual      = data |> Stream.ofArray |> Stream.take limit |> Stream.toArray
+            eqf expected actual "take: %A - limit %d" description limit
+
+        ()
+
+    [<Test>]
+    let testToArray () =
         testIntData <| fun description data ->
             let expected    = data
-            let actual      = data |> Seq.toList |> Stream.ofList |> Stream.toArray
-            eqf expected actual "ofArray: %A" description
+            let actual      = data |> Stream.ofArray |> Stream.toArray
+            eqf expected actual "toArray: %A - limit %d" description
 
-        testIntVariants <| fun description data limit ->
-            let expected    = data |> Seq.take limit |> Seq.toArray
-            let actual      = data |> Seq.toList |> Stream.ofList |> Stream.take limit |> Stream.toArray
-            eqf expected actual "ofArray: %A - limit %d" description limit
+        ()
+
+    [<Test>]
+    let testToList () =
+        testIntData <| fun description data ->
+            let expected    = data |> Seq.toList
+            let actual      = data |> Stream.ofArray |> Stream.toList
+            eqf expected actual "toList: %A - limit %d" description
+
+        ()
+
+    [<Test>]
+    let testToSum () =
+        testIntData <| fun description data ->
+            let expected    = data |> Seq.sum
+            let actual      = data |> Stream.ofArray |> Stream.toSum 0
+            eqf expected actual "toSum: %A - limit %d" description
+
+        ()
+
+        testIntData <| fun description data ->
+            let expected    = 10 + (data |> Seq.sum)
+            let actual      = data |> Stream.ofArray |> Stream.toSum 10
+            eqf expected actual "toSum: %A - limit %d" description
 
         ()
 
@@ -196,21 +260,21 @@ module internal TestStreamModule =
             eqf (series f t) sum "Sum %d..%d" f t
 
         let sum =
-            Stream.ofRange 0 1 101
+            Stream.ofRange 1 1 101
             |> Stream.toSum 0
 
-        test 0 100 sum
+        test 1 100 sum
 
         let sum =
-            Stream.ofRange 0 1 101
+            Stream.ofRange 1 1 101
             |> Stream.take 10
             |> Stream.toSum 0
 
-        test 0 10 sum
+        test 1 10 sum
 
         let sum =
-            Stream.ofRange 0 1 101
-            |> Stream.skip 90
+            Stream.ofRange 1 1 101
+            |> Stream.skip 89
             |> Stream.toSum 0
 
         test 90 100 sum
