@@ -382,6 +382,8 @@ module internal TestStreamModule =
                 |> Seq.map (fun x -> x + 1L)
                 |> Seq.sum
 
+            let linqSum () = ((data.Where(fun x -> x % 2L = 0L)).Select(fun x -> x + 1L)).Sum()
+
             let arraySum () =
                 data
                 |> Array.filter (fun x -> x % 2L = 0L)
@@ -399,6 +401,7 @@ module internal TestStreamModule =
                 [|
                     "Seq"       , seqSum
                     "For"       , forSum
+                    "LINQ"      , linqSum
                     "Stream"    , streamSum
                 |]
 
