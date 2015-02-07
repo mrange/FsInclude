@@ -119,3 +119,62 @@ module internal TestBasicModule =
             eqf expected actual "lift5: variant - %A" testCase
 
         ()
+
+    [<Test>]
+    let ``test Numerical.clamp`` () =
+        let actual = Numerical.clamp 1. 0. 2.
+        eqf 1. actual "clamp 1. 0. 2."
+
+        let actual = Numerical.clamp 0. 0. 2.
+        eqf 0. actual "clamp 0. 0. 2."
+
+        let actual = Numerical.clamp 2. 0. 2.
+        eqf 2. actual "clamp 2. 0. 2."
+
+        let actual = Numerical.clamp -1. 0. 2.
+        eqf 0. actual "clamp -1. 0. 2."
+
+        let actual = Numerical.clamp 3. 0. 2.
+        eqf 2. actual "clamp 3. 0. 2."
+
+        let actual = Numerical.clamp 1 0 2
+        eqf 1 actual "clamp 1 0 2"
+
+        ()
+
+    [<Test>]
+    let ``test Numerical.lerp`` () =
+        let actual = Numerical.lerp 0. 1. 3.
+        eqf 1. actual "lerp 0. 1. 3."
+
+        let actual = Numerical.lerp 1. 1. 3.
+        eqf 3. actual "lerp 0. 1. 3."
+
+        let actual = Numerical.lerp -1. 1. 3.
+        eqf 1. actual "lerp -1. 1. 3."
+
+        let actual = Numerical.lerp 2. 1. 3.
+        eqf 3. actual "lerp 2. 1. 3."
+
+        let actual = Numerical.lerp 0.5 1. 3.
+        eqf 2. actual "lerp 0.5 1. 3."
+
+        let actual = Numerical.lerp 0.25 1. 3.
+        eqf 1.5 actual "lerp 0.25 1. 3."
+
+        let actual = Numerical.lerp 0.5F 1.F 3.F
+        eqf 2.F actual "lerp 0.5F 1.F 3.F"
+
+        ()
+
+    [<Test>]
+    let ``test Numerical.mad`` () =
+
+        let actual = Numerical.mad 0. 1. 2.
+        eqf 2. actual "mad 0. 1. 2."
+
+        let actual = Numerical.mad 2. 1. 0.
+        eqf 2. actual "2. 1. 0."
+
+        let actual = Numerical.mad 1. 1. 1.
+        eqf 2. actual "1. 1. 1"

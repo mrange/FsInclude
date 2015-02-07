@@ -216,6 +216,45 @@ module internal Stream =
         s (c,r)
         !sum
 
+module RStream =
+    type RStream<'TIn, 'TOut> = ('TIn -> unit)*(unit->'TOut)
+
+    let inline toSum (initialValue : 'T) : RStream<'T, 'T> =
+        let sum = ref initialValue
+
+        let inline ii v  = sum := !sum + v
+        let inline oo () = !sum
+
+        ii,oo
+
+    let inline filter (p : 'TIn -> bool) ((i,o) : RStream<'TIn, 'TOut>) : RStream<'TIn, 'TOut> =
+
+        let inline ii v  = if p v then i v
+
+        ii,o
+
+    let inline map (p : 'TIn -> 'U) ((i,o) : RStream<'U, 'TOut>) : RStream<'TIn, 'TOut> =
+
+        let inline ii v  = i (p v)
+
+        ii,o
+
+    let inline ofRange (inclusiveBegin : 'TIn) (increment : 'TIn) (exclusiveEnd : 'TIn) ((i,o) : RStream<'TIn, 'TOut>) : 'TOut =
+
+        let mutable iter = inclusiveBegin
+        while iter < exclusiveEnd do
+            i iter
+            iter <- iter + increment
+
+        o ()
+
+    let inline ofArray (a : 'TIn []) ((i,o) : RStream<'TIn, 'TOut>) : 'TOut =
+
+        for v in a do
+            i v
+
+        o ()
+
 (*
 
 type FReceiver<'T> =

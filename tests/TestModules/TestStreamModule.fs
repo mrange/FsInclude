@@ -350,9 +350,11 @@ module internal TestStreamModule =
 
         ()
 
+#if DEBUG
+#else
     [<Test>]
     let ``testing Stream performance`` () =
-        let total = 10000000
+        let total = 50000000
         let outers=
             [|
                 10
@@ -397,12 +399,17 @@ module internal TestStreamModule =
                 |> Stream.map (fun x -> x + 1L)
                 |> Stream.toSum 0L
 
+            let rstreamSum () =
+                RStream.ofArray data (RStream.filter (fun x -> x % 2L = 0L) (RStream.map (fun x -> x + 1L) (RStream.toSum 0L)))
+
+
             let testCases =
                 [|
                     "Seq"       , seqSum
                     "For"       , forSum
                     "LINQ"      , linqSum
                     "Stream"    , streamSum
+                    "RStream"   , rstreamSum
                 |]
 
             let testResults =
@@ -420,3 +427,4 @@ module internal TestStreamModule =
                 gtef seq_elapsed elapsed "Performance for %A" name
 
         ()
+#endif

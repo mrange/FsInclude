@@ -70,3 +70,19 @@ module internal Opt =
         match v0, v1, v2, v3, v4 with
         | Some s0, Some s1, Some s2, Some s3, Some s4 -> Some <| c s0 s1 s2 s3 s4
         | _ -> None
+
+module Numerical =
+
+    let inline clamp v min max : 'T =
+        if v < min then min
+        elif v > max then max
+        else v
+
+    let inline lerp t min max : 'T =
+        let zero = LanguagePrimitives.GenericZero
+        let one  = LanguagePrimitives.GenericOne
+        if t <= zero then min
+        elif t >= one then max
+        else t*(max - min) + min
+
+    let inline mad x y z : 'T = x*y + z
