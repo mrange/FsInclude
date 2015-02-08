@@ -80,11 +80,21 @@ module internal Test =
         if expected >= actual then
             true
         else
-            failf "EXPECTED_GTE (): %A >= %A, %s" expected actual msg
+            failf "EXPECTED_GTE: %A >= %A, %s" expected actual msg
             false
 
     let gtef (expected : 'T) (actual : 'T) (format : StringFormat<'U, bool>) : 'U =
         ksprintf (gte expected actual) format
+
+    let range (f : 'T) (t : 'T) (actual : 'T) (msg : string) : bool =
+        if f <= actual && actual <= t then
+            true
+        else
+            failf "EXPECTED_RANGE: [%A,%A] <= %A, %s" f t actual msg
+            false
+
+    let rangef (f : 'T) (t : 'T) (actual : 'T) (format : StringFormat<'U,bool>) : 'U =
+        ksprintf (range f t actual) format
 
     let runTestCases (assembly : Assembly) : bool =
         failureCount <- 0

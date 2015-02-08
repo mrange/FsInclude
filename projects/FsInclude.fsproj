@@ -62,7 +62,10 @@
     <Compile Include="..\src\Modules\StreamModule.fs">
       <Link>Modules\StreamModule.fs</Link>
     </Compile>
-    <Compile Include="..\src\FsInclude\FsInclude.fs">
+      <Compile Include="..\src\Responsiveness\AsyncModule.fs">
+          <Link>Responsiveness\AsyncModule.fs</Link>
+      </Compile>
+      <Compile Include="..\src\FsInclude\FsInclude.fs">
       <Link>FsInclude\FsInclude.fs</Link>
     </Compile>
     <None Include="App.config" />
@@ -75,7 +78,10 @@
     <Compile Include="..\tests\TestModules\TestStreamModule.fs">
       <Link>FsIncludeTests\TestModules\TestStreamModule.fs</Link>
     </Compile>
-    <Compile Include="Program.fs" />
+      <Compile Include="..\tests\TestResponsiveness\TestAsyncModule.fs">
+          <Link>FsIncludeTests\TestResponsiveness\TestAsyncModule.fs</Link>
+      </Compile>
+      <Compile Include="Program.fs" />
   </ItemGroup>
   <PropertyGroup>
     <MinimumVisualStudioVersion Condition="'$(MinimumVisualStudioVersion)' == ''">11</MinimumVisualStudioVersion>
