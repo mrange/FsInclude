@@ -56,6 +56,22 @@ module internal Test =
     let failf (format : StringFormat<'T, unit>) : 'T =
         ksprintf fail format
 
+    let eqexn (expected : exn) (action : unit -> 'T) (msg : string) : bool =
+        try
+            let _ = action ()
+            failf "EXPECTED_EXCEPTION: %A = <None>, %s" (expected.GetType().Name) msg
+            false
+        with
+        | e -> 
+            if expected = e then
+                true
+            else
+                failf "EXPECTED_EXCEPTION: %A = %A, %s" expected e msg
+                false
+
+    let eqexnf (expected : exn) (action : unit -> 'T) (format : StringFormat<'U,bool>) : 'U =
+        ksprintf (eqexn expected action) format
+
     let eq (expected : 'T) (actual : 'T) (msg : string) : bool =
         if expected = actual then
             true
