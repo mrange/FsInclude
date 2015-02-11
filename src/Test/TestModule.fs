@@ -62,7 +62,7 @@ module internal Test =
             failf "EXPECTED_EXCEPTION: %A = <None>, %s" (expected.GetType().Name) msg
             false
         with
-        | e -> 
+        | e ->
             if expected = e then
                 true
             else

@@ -22,41 +22,128 @@ module internal Gem =
     open System.Threading
     open System.Threading.Tasks
 
+    type FlowInterrupt =
+        | FlowCancelled
+        | Exception     of exn
 
-    type FlowContinuationResult =
-        | Success
-        | FlowCancelled                 
-        | TokenCancelled                of CancellationToken
-        | UserCancelled                 of obj
-        | UnrecoverableErrorDetected    of exn
-        | ThreadShutDown
-        | ApplicationShutDown
-    
-    type FlowContext() =
+    type FlowHandler = FlowInterrupt -> bool
+
+    type FlowContinuation = int->unit
+
+    [<NoComparison;Sealed>]
+    type FlowExecutor(ctx : FlowContext) =
+
+        let mutable handlers : FlowHandler list = []
+
+        member x.Context = ctx
+
+        member x.CheckCallingThread () =
+            ctx.CheckCallingThread ()
+
+        member x.Push (handler : FlowHandler) : unit =
+            x.CheckCallingThread ()
+
+            handlers <- handler::handlers
+
+        member x.PushDisposable (d : IDisposable) : unit =
+            x.Push (fun _ -> d.Dispose (); true)
+
+        member x.PushFinallyHandler (handler : unit -> unit) : unit =
+            x.Push (fun _ -> handler (); true)
+
+        member x.PushWithHandler (handler : exn -> unit) : unit =
+            x.Push (
+                fun fi ->
+                    match fi with
+                    | FlowCancelled -> true
+                    | Exception e   ->
+                        handler e
+                        false
+                )
+
+        member x.PopHandler () =
+            x.CheckCallingThread ()
+
+            match handlers with
+            | _::hs -> handlers <- hs
+            | _ -> failwith "Handler stack empty"
+
+        member x.RaiseException (e : exn) : exn option =
+            x.CheckCallingThread ()
+
+            let rec raiseException (e : exn) (hs : FlowHandler list) : (exn option)*(FlowHandler list) =
+                match hs with
+                | []    -> (Some e),[]
+                | h::hh ->
+                    let result =
+                        try
+                            if h (Exception e) then
+                                Some e
+                            else
+                                None
+
+                        with
+                        | e -> Some e
+
+                    match result with
+                    | None      -> None,hh
+                    | Some ee   -> raiseException ee hh
+
+            let oe,hs = raiseException e handlers
+
+            handlers <- hs
+
+            oe
+
+        member x.CancelOperation () : exn list =
+            x.CheckCallingThread ()
+
+            let rec cancelOperation (exns : exn list) (hs : FlowHandler list) : exn list =
+                match hs with
+                | []    -> exns
+                | h::hh ->
+                    let result =
+                        try
+                            ignore <| h FlowCancelled
+                            exns
+                        with
+                        | e -> e::exns
+
+                    cancelOperation result hh
+
+            let exns = cancelOperation []  handlers
+
+            handlers <- []
+
+            exns
+
+
+    and [<NoEquality;NoComparison;Sealed>] FlowContext() =
         inherit BaseDisposable()
 
         let threadId        = Thread.CurrentThread.ManagedThreadId
-        let continuations   = Dictionary<int, WaitHandle*(int*FlowContinuationResult->unit)>()
+        let continuations   = Dictionary<int, FlowExecutor*WaitHandle*FlowContinuation>()
 
         let mutable nextId  = 0
         let mutable waiting = false
 
-        override x.OnDispose () = 
-            x.CancelAllContinuations FlowCancelled
+        override x.OnDispose () =
+            // TODO: Throw aggregate exception?
+            ignore <| x.CancelExecution ()
 
         member x.CheckCallingThread () =
             let id = Thread.CurrentThread.ManagedThreadId
             if id <> threadId then failwithf "Wrong calling thread, expected: %d, actual: %d" threadId id
 
-        member x.RegisterContinuation (waitHandle : WaitHandle) (continuation : int*FlowContinuationResult->unit) : unit =
+        member x.RegisterContinuation (exec : FlowExecutor) (waitHandle : WaitHandle) (continuation : FlowContinuation) : unit =
             x.CheckCallingThread ()
 
             let id = nextId
             nextId <- nextId + 1
 
-            continuations.Add (id, (waitHandle, continuation))
+            continuations.Add (id, (exec, waitHandle, continuation))
 
-        member x.UnregisterWaitHandle (key : int) : unit =
+        member x.UnregisterContinuation (key : int) : unit =
             x.CheckCallingThread ()
 
             ignore <| continuations.Remove key
@@ -65,14 +152,10 @@ module internal Gem =
             x.CheckCallingThread ()
 
             [|
-                for kv in continuations -> 
-                    let waitHandle, continuation = kv.Value
-                    kv.Key, waitHandle, continuation
+                for kv in continuations ->
+                    let exec, waitHandle, continuation = kv.Value
+                    kv.Key, exec, waitHandle, continuation
             |]
-
-        member x.IsAwaiting = 
-            x.CheckCallingThread ()
-            waiting
 
         member x.AwaitAllContinuations () : unit =
             x.CheckCallingThread ()
@@ -86,180 +169,181 @@ module internal Gem =
 
                         let waithandles =
                             [|
-                                for _,waitHandle,_ in conts -> waitHandle
+                                for _,_,waitHandle,_ in conts -> waitHandle
                             |]
 
-                        // TODO: Handle different error cases
                         let signaled = WaitHandle.WaitAny (waithandles)
 
-                        let key,_,continuation = conts.[signaled]
+                        let key,exec,_,continuation = conts.[signaled]
 
-                        continuation (key, Success)
+                        try
+                            continuation key
+                        with
+                        | e ->
+                            let oe = exec.RaiseException e
+                            match oe with
+                            | Some ee -> raise ee
+                            | _ -> ()
                 finally
                     waiting <- false
 
-        member x.CancelAllContinuations (fcr : FlowContinuationResult) : unit =
+        member x.CancelExecution () : exn [] =
             x.CheckCallingThread ()
 
             let conts = x.Continuations
-            
+
             continuations.Clear ()
 
-            for key,_,continuation in conts do
-                try
-                    continuation (key, fcr)
-                with 
-                | e -> 
-                    ()  // TODO: Accumulate exceptions
+            let execs = HashSet<_> (seq {for _,exec,_,_ in conts -> exec})
+
+            execs
+            |> Seq.map (fun exec -> exec.CancelOperation ())
+            |> Seq.concat
+            |> Seq.toArray
 
     type Continuation<'T> = 'T -> unit
 
-    type Flow<'T> = FlowContext*Continuation<'T> -> unit
+    type Flow<'T> = FlowExecutor*Continuation<'T> -> unit
 
     module FlowModule =
 
-        let Return (v : 'T) : Flow<'T> =
-            fun (ctx, cont) ->
-                ctx.CheckCallingThread()
-                cont v
-
-        let ReturnFrom (t : Flow<'T>) : Flow<'T> = t
-
         let Bind (t : Flow<'T>) (fu : 'T -> Flow<'U>) : Flow<'U> =
-            fun (ctx, cont) ->
+            fun (exec, cont) ->
                 let tcont v =
-                    ctx.CheckCallingThread()
+                    exec.CheckCallingThread()
                     let u = fu v
-                    u (ctx, cont)
-                
-                t (ctx, tcont)
+                    u (exec, cont)
 
+                t (exec, tcont)
         let Combine (t : Flow<unit>) (u : Flow<'T>) : Flow<'T> =
-            fun (ctx, cont) ->
-                ctx.CheckCallingThread()
+            fun (exec, cont) ->
+                exec.CheckCallingThread()
                 let tcont _ =
-                    ctx.CheckCallingThread()
-                    u (ctx, cont)
-                
-                t (ctx, tcont)
+                    exec.CheckCallingThread()
+                    u (exec, cont)
+
+                t (exec, tcont)
 
         let Delay (dt : unit -> Flow<'T>) : Flow<'T> =
-            fun (ctx, cont) ->
-                ctx.CheckCallingThread()
+            fun (exec, cont) ->
+                exec.CheckCallingThread()
                 let t = dt ()
-                t (ctx, cont)
+                t (exec, cont)
+
+        let Return (v : 'T) : Flow<'T> =
+            fun (exec, cont) ->
+                exec.CheckCallingThread()
+                cont v
+        let ReturnFrom (t : Flow<'T>) : Flow<'T> = t
+        let Zero : Flow<unit> =
+            fun (exec, cont) ->
+                exec.CheckCallingThread()
+                cont ()
 
         let For (s : seq<'T>) (ft : 'T -> Flow<unit>) : Flow<unit> =
-            fun (ctx, cont) ->
-                ctx.CheckCallingThread()
+            fun (exec, cont) ->
+                exec.CheckCallingThread()
 
                 do
                     use e = s.GetEnumerator ()
 
-                    let rec ic () = 
+                    let rec ic () =
                         if e.MoveNext () then
                             let t = ft e.Current
-                            t (ctx, ic)
+                            t (exec, ic)
 
                     ic ()
 
                 cont ()
-
-        // TODO: All these exception handlers might need be stored in context to support
-        // calling all finalizers on exception
-
-        let Using (v : #IDisposable) (ft : #IDisposable -> Flow<'T>) : Flow<'T>= 
-            fun (ctx, cont) ->
-                ctx.CheckCallingThread()
-                let t = ft v
-
-                let rv = ref None
-                let ic v =
-                    ctx.CheckCallingThread ()
-                    rv := Some v
-                try
-                    t (ctx, ic)
-                finally
-                    v.Dispose ()
-
-                cont (!rv).Value
-
-        let TryFinally (t : Flow<'T>) (handler : unit->unit) : Flow<'T> = 
-            fun (ctx, cont) ->
-                ctx.CheckCallingThread()
-                let rv = ref None
-                let ic v =
-                    ctx.CheckCallingThread ()
-                    rv := Some v
-                try
-                    t (ctx, ic)
-                finally
-                    handler ()
-
-                cont (!rv).Value
-
-        let TryWith (t : Flow<'T>) (handler : exn->Flow<'T>) : Flow<'T> = 
-            fun (ctx, cont) ->
-                ctx.CheckCallingThread()
-                let rv = ref None
-                let re = ref None
-
-                let ic v = 
-                    ctx.CheckCallingThread ()
-                    rv := Some v
-                try
-                    t (ctx, ic)
-                with
-                | e ->
-                    re := Some e
-
-                match !rv, !re with
-                | Some v, None  -> cont v
-                | None  , Some e-> 
-                    let u = handler e
-                    u (ctx, cont) 
-                | _     , _     -> failwith "Invalid case" // TODO:
-
         let While (e : unit -> bool) (t : Flow<unit>) : Flow<unit> =
-            fun (ctx, cont) ->
-                ctx.CheckCallingThread()
+            fun (exec, cont) ->
+                exec.CheckCallingThread()
 
-                let rec ic () = 
-                    ctx.CheckCallingThread()
+                let rec ic () =
+                    exec.CheckCallingThread()
                     if e () then
-                        t (ctx, ic)
+                        t (exec, ic)
 
                 ic ()
 
                 cont ()
 
-        let Zero : Flow<unit> =
-            fun (ctx : FlowContext, cont) ->
-                ctx.CheckCallingThread()
-                cont ()
+        let Using (d : #IDisposable) (ft : #IDisposable -> Flow<'T>) : Flow<'T>=
+            fun (exec, cont) ->
+                exec.CheckCallingThread()
+
+                let t = ft d
+
+                let ic v =
+                    exec.CheckCallingThread ()
+                    exec.PopHandler ()
+                    d.Dispose ()
+                    cont v
+
+                exec.PushDisposable d
+
+                t (exec, ic)
+        let TryFinally (t : Flow<'T>) (handler : unit->unit) : Flow<'T> =
+            fun (exec, cont) ->
+                exec.CheckCallingThread()
+
+                let ic v =
+                    exec.CheckCallingThread ()
+                    exec.PopHandler ()
+                    handler ()
+                    cont v
+
+                exec.PushFinallyHandler handler
+
+                t (exec, ic)
+        let TryWith (t : Flow<'T>) (fu : exn->Flow<'T>) : Flow<'T> =
+            fun (exec, cont) ->
+                exec.CheckCallingThread()
+
+                let handler e =
+                    let u = fu e
+                    u (exec, cont)
+
+                let ic v =
+                    exec.CheckCallingThread ()
+                    exec.PopHandler ()
+                    cont v
+
+                exec.PushWithHandler handler
+
+                t (exec, ic)
 
     module Flow =
 
         let Run (t : Flow<'T>) : 'T =
-            use ctx = new FlowContext()
+            use ctx     = new FlowContext()
+            let exec    = new FlowExecutor(ctx)
 
-            let result = ref Unchecked.defaultof<'T>
-            let cont v = result := v
+            let result = ref None
+            let cont v = result := Some v
 
-            t (ctx, cont)
+            try
+                t (exec, cont)
+            with
+            | e ->
+                let oe = exec.RaiseException e
+                match oe with
+                | Some ee -> raise ee
+                | _ -> ()
+
             ctx.AwaitAllContinuations ()
 
-            !result
+            result.Value.Value
 
         let StartChild (t : Flow<'T>) : Flow<Flow<'T>> =
-            fun (ctx, cont) ->
-                ctx.CheckCallingThread()
+            fun (exec, cont) ->
+                exec.CheckCallingThread()
                 let rcont   = ref None
                 let rvalue  = ref None
 
                 let child : Flow<'T> =
-                    fun (ctx, cont) ->
-                        ctx.CheckCallingThread ()
+                    fun (exec, cont) ->
+                        exec.CheckCallingThread ()
 
                         rcont := Some cont
                         match !rvalue with
@@ -267,76 +351,92 @@ module internal Gem =
                         | _         -> ()
 
                 let icont v =
-                    ctx.CheckCallingThread ()
+                    exec.CheckCallingThread ()
 
                     rvalue := Some v
                     match !rcont with
                     | Some c    -> c v
                     | _         -> ()
 
-                t (ctx, icont)
+                let cexec = FlowExecutor(exec.Context)
+                t (cexec, icont)
 
                 cont child
 
+        let AdaptWaitHandle (waitHandle : WaitHandle) : Flow<unit> =
+            fun (exec, cont) ->
+                exec.CheckCallingThread()
+
+                let ic key =
+                    exec.Context.UnregisterContinuation key
+
+                    cont ()
+
+                exec.Context.RegisterContinuation exec waitHandle ic
+
         let AdaptTask (t : Task<'T>) : Flow<'T> =
-            fun (ctx, cont) ->
-                ctx.CheckCallingThread()
-                let inline tryRun () = 
+            fun (exec, cont) ->
+                exec.CheckCallingThread()
+                let inline tryRun () =
                     match t.Status with
                     | TaskStatus.Canceled           -> raise (OperationCanceledException ())
                     | TaskStatus.Faulted            -> raise t.Exception
-                    | TaskStatus.RanToCompletion    -> cont t.Result                    ; true
+                    | TaskStatus.RanToCompletion    -> cont t.Result; true
                     | _ -> false
 
                 if tryRun () then ()
                 else
                     let ar : IAsyncResult = upcast t
 
-                    let ic (key : int, fcr : FlowContinuationResult) =
-                        ctx.UnregisterWaitHandle key
+                    let ic key =
+                        exec.Context.UnregisterContinuation key
 
                         let result = tryRun ()
 
                         if not result then failwith "Task execution failed"
 
-                    ctx.RegisterContinuation ar.AsyncWaitHandle ic
+                    exec.Context.RegisterContinuation exec ar.AsyncWaitHandle ic
 
         let AdaptUnitTask (t : Task) : Flow<unit> =
-            fun (ctx, cont) ->
-                ctx.CheckCallingThread()
-                let inline tryRun () = 
+            fun (exec, cont) ->
+                exec.CheckCallingThread()
+                let inline tryRun () =
                     match t.Status with
                     | TaskStatus.Canceled           -> raise (OperationCanceledException ())
                     | TaskStatus.Faulted            -> raise t.Exception
-                    | TaskStatus.RanToCompletion    -> cont ()                          ; true
+                    | TaskStatus.RanToCompletion    -> cont (); true
                     | _ -> false
 
                 if tryRun () then ()
                 else
                     let ar : IAsyncResult = upcast t
 
-                    let ic (key : int, fcr : FlowContinuationResult) =
-                        ctx.UnregisterWaitHandle key
+                    let ic key =
+                        exec.Context.UnregisterContinuation key
 
                         let result = tryRun ()
 
                         if not result then failwith "Task execution failed"
 
-                    ctx.RegisterContinuation ar.AsyncWaitHandle ic
-            
-    
+                    exec.Context.RegisterContinuation exec ar.AsyncWaitHandle ic
+
+
     type FlowBuilder() =
 
         member inline x.Bind(t,fu)      = FlowModule.Bind t fu
         member inline x.Combine(t,u)    = FlowModule.Combine t u
+
         member inline x.Delay(dt)       = FlowModule.Delay dt
-        member inline x.For(s,ft)       = FlowModule.For s ft
-        member inline x.Using(t,a)      = FlowModule.Using t a
+
         member inline x.Return(v)       = FlowModule.Return v
         member inline x.ReturnFrom(t)   = FlowModule.ReturnFrom t
+        member inline x.Zero()          = FlowModule.Zero
+
+        member inline x.For(s,ft)       = FlowModule.For s ft
+        member inline x.While(g,t)      = FlowModule.While g t
+
+        member inline x.Using(t,a)      = FlowModule.Using t a
         member inline x.TryFinally(t,a) = FlowModule.TryFinally t a
         member inline x.TryWith(t,a)    = FlowModule.TryWith t a
-        member inline x.While(g,t)      = FlowModule.While g t
-        member inline x.Zero()          = FlowModule.Zero
 
     let flow = FlowBuilder ()

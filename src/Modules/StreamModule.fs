@@ -216,7 +216,7 @@ module internal Stream =
         s (c,r)
         !sum
 
-module RStream =
+module internal RStream =
     type RStream<'TIn, 'TOut> = ('TIn -> unit)*(unit->'TOut)
 
     let inline toSum (initialValue : 'T) : RStream<'T, 'T> =

@@ -71,7 +71,7 @@ module internal Opt =
         | Some s0, Some s1, Some s2, Some s3, Some s4 -> Some <| c s0 s1 s2 s3 s4
         | _ -> None
 
-module Numerical =
+module internal Numerical =
 
     let inline clamp v min max : 'T =
         if v < min then min

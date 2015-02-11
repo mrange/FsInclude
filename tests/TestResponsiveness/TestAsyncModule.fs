@@ -31,17 +31,17 @@ module internal TestGem =
         sw.Start ()
 
         let result = action ()
-        
+
         sw.Stop ()
 
         sw.ElapsedMilliseconds, result
 
-    
+
     let ex = System.Exception ()
 
-    let throwingFlow b = 
+    let throwingFlow b =
         flow {
-            if b then 
+            if b then
                 raise ex
             else ()
 
@@ -58,7 +58,7 @@ module internal TestGem =
             r := !r + 1
             !r
 
-        let clear () = 
+        let clear () =
             r := 0
             r1 := 0
             r2 := 0
@@ -69,7 +69,7 @@ module internal TestGem =
     type SetOnDispose(nm : string, ri : int ref, next : unit -> int) =
         inherit BaseDisposable()
 
-        override x.OnDispose () = 
+        override x.OnDispose () =
             printfn "Disposed: %s" nm
             ri := next ()
 
@@ -99,7 +99,7 @@ module internal TestGem =
             Flow.Run f
 
         eq 3 actual "Delayed flow"
-        range 200L 220L elapsed "Delayed flow"
+        range 200L 240L elapsed "Delayed flow"
 
     [<Test>]
     let ``test child delayed flow`` () =
@@ -111,14 +111,14 @@ module internal TestGem =
                 flow {
                     let! r1a = Flow.AdaptTask t1 |> Flow.StartChild
                     let! r2  = Flow.AdaptTask t2
-                    let! r1  = r1a 
+                    let! r1  = r1a
                     return r1 + r2 + 1
                 }
 
             Flow.Run f
 
         eq 7 actual "Child delayed flow"
-        range 200L 220L elapsed "Child delayed flow"
+        range 200L 240L elapsed "Child delayed flow"
 
         ()
 
@@ -210,7 +210,7 @@ module internal TestGem =
                 return new SetOnDispose ("r1", r1, next)
             }
 
-        let u b = 
+        let u b =
             flow {
                 let result = ref false
 
