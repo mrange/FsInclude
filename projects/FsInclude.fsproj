@@ -62,8 +62,8 @@
     <Compile Include="..\src\Modules\StreamModule.fs">
       <Link>Modules\StreamModule.fs</Link>
     </Compile>
-      <Compile Include="..\src\Responsiveness\AsyncModule.fs">
-          <Link>Responsiveness\AsyncModule.fs</Link>
+      <Compile Include="..\src\Responsiveness\MultiplexModule.fs">
+          <Link>Responsiveness\MultiplexModule.fs</Link>
       </Compile>
       <Compile Include="..\src\FsInclude\FsInclude.fs">
       <Link>FsInclude\FsInclude.fs</Link>
@@ -78,8 +78,8 @@
     <Compile Include="..\tests\TestModules\TestStreamModule.fs">
       <Link>FsIncludeTests\TestModules\TestStreamModule.fs</Link>
     </Compile>
-      <Compile Include="..\tests\TestResponsiveness\TestAsyncModule.fs">
-          <Link>FsIncludeTests\TestResponsiveness\TestAsyncModule.fs</Link>
+      <Compile Include="..\tests\TestResponsiveness\TestMultiplexModule.fs">
+          <Link>FsIncludeTests\TestResponsiveness\TestMultiplexModule.fs</Link>
       </Compile>
       <Compile Include="Program.fs" />
   </ItemGroup>

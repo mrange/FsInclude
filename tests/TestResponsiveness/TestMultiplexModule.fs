@@ -16,13 +16,13 @@
 
 namespace FsInclude.Tests
 
-module internal TestGem =
+module internal TestMultiplex =
 
     open System.Diagnostics
     open System.Threading.Tasks
 
     open FsInclude
-    open FsInclude.Gem
+    open FsInclude.Multiplex
     open FsInclude.Test
 
     let time (action : unit -> 'T) =

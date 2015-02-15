@@ -15,7 +15,7 @@
 
 namespace FsInclude
 
-module internal Gem =
+module internal Multiplex =
 
     open System
     open System.Collections.Generic
