@@ -27,7 +27,15 @@ type internal BaseDisposable() =
                 try
                     x.OnDispose ()
                 with
-                | e -> Log.errorf "%s.Dispose () threw exception: %A" "" e
+                | e -> Log.errorf "%s.Dispose () threw exception: %A" (x.GetType().Name) e
+
+
+    member x.IsDisposed = x.isDisposed <> 0
+
+    member x.IsNotDisposed = x.isDisposed = 0
+
+    member x.CheckDisposed () =
+        if x.IsDisposed then raise (System.ObjectDisposedException (x.GetType().Name))
 
     abstract OnDispose: unit -> unit
 
@@ -38,4 +46,15 @@ type internal ActionDisposable(action : unit -> unit) =
 
 module internal Disposable =
     let onExitDo (action : unit -> unit) : System.IDisposable = upcast new ActionDisposable(action)
+
+    let inline dispose (d : System.IDisposable) =
+        if d <> null then d.Dispose ()
+
+    let dispose2 (d : System.IDisposable) =
+        if d <> null then
+            try
+                d.Dispose ()
+            with
+            | e ->
+                Log.errorf "%s.Dispose () threw exception: %A" (d.GetType().Name) e
 

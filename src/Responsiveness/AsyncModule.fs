@@ -1,4 +1,5 @@
-﻿// Copyright 2015 Mårten Rånge
+﻿// ### INCLUDE: ../Common/Disposable.fs
+// Copyright 2015 Mårten Rånge
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,296 +23,331 @@ module internal Gem =
     open System.Threading
     open System.Threading.Tasks
 
-    type FlowInterrupt =
-        | FlowCancelled
-        | Exception     of exn
+    module Details =
+        type FlowInterrupt =
+            | FlowCancelled
+            | Exception     of exn
 
-    type FlowHandler = FlowInterrupt -> bool
+        type FlowHandler = FlowInterrupt -> bool
 
-    type FlowContinuation = int->unit
+        type FlowContinuation = int->unit
 
-    [<NoComparison;Sealed>]
-    type FlowExecutor(ctx : FlowContext) =
+        [<NoComparison;Sealed>]
+        type FlowExecutor(ctx : FlowContext) as x =
 
-        let mutable handlers : FlowHandler list = []
+            let mutable handlers : FlowHandler list = []
 
-        member x.Context = ctx
+            do
+                ctx.AddExecutor x
 
-        member x.CheckCallingThread () =
-            ctx.CheckCallingThread ()
+            member x.Context = ctx
 
-        member x.Push (handler : FlowHandler) : unit =
-            x.CheckCallingThread ()
+            member x.CheckCallingThread () =
+                ctx.CheckCallingThread ()
 
-            handlers <- handler::handlers
+            member x.Push (handler : FlowHandler) : unit =
+                x.CheckCallingThread ()
 
-        member x.PushDisposable (d : IDisposable) : unit =
-            x.Push (fun _ -> d.Dispose (); true)
+                if ctx.IsDisposed then ()   // TODO: Trace
+                else
+                    handlers <- handler::handlers
 
-        member x.PushFinallyHandler (handler : unit -> unit) : unit =
-            x.Push (fun _ -> handler (); true)
+            member x.PushDisposable (d : IDisposable) : unit =
+                x.Push (fun _ -> Disposable.dispose d; true)
 
-        member x.PushWithHandler (handler : exn -> unit) : unit =
-            x.Push (
-                fun fi ->
-                    match fi with
-                    | FlowCancelled -> true
-                    | Exception e   ->
-                        handler e
-                        false
-                )
+            member x.PushFinallyHandler (handler : unit -> unit) : unit =
+                x.Push (fun _ -> handler (); true)
 
-        member x.PopHandler () =
-            x.CheckCallingThread ()
+            member x.PushWithHandler (handler : exn -> unit) : unit =
+                x.Push (
+                    fun fi ->
+                        match fi with
+                        | FlowCancelled -> true
+                        | Exception e   ->
+                            handler e
+                            false
+                    )
 
-            match handlers with
-            | _::hs -> handlers <- hs
-            | _ -> failwith "Handler stack empty"
+            member x.PopHandler () =
+                x.CheckCallingThread ()
 
-        member x.RaiseException (e : exn) : exn option =
-            x.CheckCallingThread ()
+                match handlers with
+                | _::hs -> handlers <- hs
+                | _ -> failwith "Handler stack empty"
 
-            let rec raiseException (e : exn) (hs : FlowHandler list) : (exn option)*(FlowHandler list) =
-                match hs with
-                | []    -> (Some e),[]
-                | h::hh ->
-                    let result =
-                        try
-                            if h (Exception e) then
-                                Some e
-                            else
-                                None
+            member x.RaiseException (e : exn) : exn option =
+                x.CheckCallingThread ()
 
-                        with
-                        | e -> Some e
+                let rec raiseException (e : exn) (hs : FlowHandler list) : (exn option)*(FlowHandler list) =
+                    match hs with
+                    | []    -> (Some e),[]
+                    | h::hh ->
+                        let result =
+                            try
+                                if h (Exception e) then
+                                    Some e
+                                else
+                                    None
 
-                    match result with
-                    | None      -> None,hh
-                    | Some ee   -> raiseException ee hh
+                            with
+                            | e -> Some e
 
-            let oe,hs = raiseException e handlers
+                        match result with
+                        | None      -> None,hh
+                        | Some ee   -> raiseException ee hh
 
-            handlers <- hs
+                let oe,hs = raiseException e handlers
 
-            oe
+                handlers <- hs
 
-        member x.CancelOperation () : exn list =
-            x.CheckCallingThread ()
+                oe
 
-            let rec cancelOperation (exns : exn list) (hs : FlowHandler list) : exn list =
-                match hs with
-                | []    -> exns
-                | h::hh ->
-                    let result =
-                        try
-                            ignore <| h FlowCancelled
-                            exns
-                        with
-                        | e -> e::exns
+            member x.CancelOperation () : exn list =
+                x.CheckCallingThread ()
 
-                    cancelOperation result hh
+                let rec cancelOperation (exns : exn list) (hs : FlowHandler list) : exn list =
+                    match hs with
+                    | []    -> exns
+                    | h::hh ->
+                        let result =
+                            try
+                                ignore <| h FlowCancelled
+                                exns
+                            with
+                            | e -> e::exns
 
-            let exns = cancelOperation []  handlers
+                        cancelOperation result hh
 
-            handlers <- []
+                let exns = cancelOperation []  handlers
 
-            exns
+                handlers <- []
+
+                exns
 
 
-    and [<NoEquality;NoComparison;Sealed>] FlowContext() =
-        inherit BaseDisposable()
+        and [<NoEquality;NoComparison;Sealed>] FlowContext() =
+            inherit BaseDisposable()
 
-        let threadId        = Thread.CurrentThread.ManagedThreadId
-        let continuations   = Dictionary<int, FlowExecutor*WaitHandle*FlowContinuation>()
+            let threadId        = Thread.CurrentThread.ManagedThreadId
+            let continuations   = Dictionary<int, FlowExecutor*WaitHandle*FlowContinuation>()
+            let executors       = ResizeArray<FlowExecutor>()
 
-        let mutable nextId  = 0
-        let mutable waiting = false
+            let mutable nextId  = 0
 
-        override x.OnDispose () =
-            // TODO: Throw aggregate exception?
-            ignore <| x.CancelExecution ()
+            override x.OnDispose () =
+                // TODO: Throw aggregate exception?
+                ignore <| x.CancelExecution ()
 
-        member x.CheckCallingThread () =
-            let id = Thread.CurrentThread.ManagedThreadId
-            if id <> threadId then failwithf "Wrong calling thread, expected: %d, actual: %d" threadId id
+            member x.AddExecutor (exec : FlowExecutor) : unit =
+                executors.Add exec
 
-        member x.RegisterContinuation (exec : FlowExecutor) (waitHandle : WaitHandle) (continuation : FlowContinuation) : unit =
-            x.CheckCallingThread ()
+            member x.CheckCallingThread () =
+                let id = Thread.CurrentThread.ManagedThreadId
+                if id <> threadId then failwithf "Wrong calling thread, expected: %d, actual: %d" threadId id
 
-            let id = nextId
-            nextId <- nextId + 1
+            member x.RegisterContinuation (exec : FlowExecutor) (waitHandle : WaitHandle) (continuation : FlowContinuation) : unit =
+                x.CheckCallingThread ()
 
-            continuations.Add (id, (exec, waitHandle, continuation))
+                if x.IsDisposed then () // TODO: Trace
+                else
+                    let id = nextId
+                    nextId <- nextId + 1
 
-        member x.UnregisterContinuation (key : int) : unit =
-            x.CheckCallingThread ()
+                    continuations.Add (id, (exec, waitHandle, continuation))
 
-            ignore <| continuations.Remove key
+            member x.UnregisterContinuation (key : int) : unit =
+                x.CheckCallingThread ()
 
-        member x.Continuations =
-            x.CheckCallingThread ()
+                ignore <| continuations.Remove key
 
-            [|
-                for kv in continuations ->
-                    let exec, waitHandle, continuation = kv.Value
-                    kv.Key, exec, waitHandle, continuation
-            |]
+            member x.Continuations =
+                x.CheckCallingThread ()
 
-        member x.AwaitAllContinuations () : unit =
-            x.CheckCallingThread ()
+                [|
+                    for kv in continuations ->
+                        let exec, waitHandle, continuation = kv.Value
+                        kv.Key, exec, waitHandle, continuation
+                |]
 
-            if waiting then ()
-            else
-                waiting <- true
-                try
-                    while continuations.Count > 0 do
-                        let conts = x.Continuations
+            member x.AwaitAllContinuations () : unit =
+                x.CheckCallingThread ()
 
-                        let waithandles =
-                            [|
-                                for _,_,waitHandle,_ in conts -> waitHandle
-                            |]
+                while continuations.Count > 0 do
+                    let conts = x.Continuations
 
-                        let signaled = WaitHandle.WaitAny (waithandles)
+                    let waithandles =
+                        [|
+                            for _,_,waitHandle,_ in conts -> waitHandle
+                        |]
 
-                        let key,exec,_,continuation = conts.[signaled]
+                    let signaled = WaitHandle.WaitAny (waithandles)
 
-                        try
-                            continuation key
-                        with
-                        | e ->
-                            let oe = exec.RaiseException e
-                            match oe with
-                            | Some ee -> raise ee
-                            | _ -> ()
-                finally
-                    waiting <- false
+                    let key,exec,_,continuation = conts.[signaled]
 
-        member x.CancelExecution () : exn [] =
-            x.CheckCallingThread ()
+                    try
+                        continuation key
+                    with
+                    | e ->
+                        let oe = exec.RaiseException e
+                        match oe with
+                        | Some ee -> raise ee
+                        | _ -> ()
 
-            let conts = x.Continuations
+            member x.CancelExecution () : exn [] =
+                x.CheckCallingThread ()
 
-            continuations.Clear ()
+                let exns = ResizeArray<exn> ()
+                let execs= executors.ToArray ()
 
-            let execs = HashSet<_> (seq {for _,exec,_,_ in conts -> exec})
+                executors.Clear ()
+                continuations.Clear ()
 
-            execs
-            |> Seq.map (fun exec -> exec.CancelOperation ())
-            |> Seq.concat
-            |> Seq.toArray
+                for exec in execs do
+                    exns.AddRange (exec.CancelOperation ())
 
-    type Continuation<'T> = 'T -> unit
+                exns.ToArray ()
+
+        type Continuation<'T> = 'T -> unit
+
+    open Details
 
     type Flow<'T> = FlowExecutor*Continuation<'T> -> unit
 
-    module FlowModule =
+    module ComputationExpression =
+        module FlowModule =
 
-        let Bind (t : Flow<'T>) (fu : 'T -> Flow<'U>) : Flow<'U> =
-            fun (exec, cont) ->
-                let tcont v =
+            let Bind (t : Flow<'T>) (fu : 'T -> Flow<'U>) : Flow<'U> =
+                fun (exec, cont) ->
                     exec.CheckCallingThread()
-                    let u = fu v
-                    u (exec, cont)
+                    let tcont v =
+                        exec.CheckCallingThread()
+                        let u = fu v
+                        u (exec, cont)
 
-                t (exec, tcont)
-        let Combine (t : Flow<unit>) (u : Flow<'T>) : Flow<'T> =
-            fun (exec, cont) ->
-                exec.CheckCallingThread()
-                let tcont _ =
+                    t (exec, tcont)
+            let Combine (t : Flow<unit>) (u : Flow<'T>) : Flow<'T> =
+                fun (exec, cont) ->
                     exec.CheckCallingThread()
-                    u (exec, cont)
+                    let tcont _ =
+                        exec.CheckCallingThread()
+                        u (exec, cont)
 
-                t (exec, tcont)
+                    t (exec, tcont)
 
-        let Delay (dt : unit -> Flow<'T>) : Flow<'T> =
-            fun (exec, cont) ->
-                exec.CheckCallingThread()
-                let t = dt ()
-                t (exec, cont)
+            let Delay (dt : unit -> Flow<'T>) : Flow<'T> =
+                fun (exec, cont) ->
+                    exec.CheckCallingThread()
+                    let t = dt ()
+                    t (exec, cont)
 
-        let Return (v : 'T) : Flow<'T> =
-            fun (exec, cont) ->
-                exec.CheckCallingThread()
-                cont v
-        let ReturnFrom (t : Flow<'T>) : Flow<'T> = t
-        let Zero : Flow<unit> =
-            fun (exec, cont) ->
-                exec.CheckCallingThread()
-                cont ()
+            let Return (v : 'T) : Flow<'T> =
+                fun (exec, cont) ->
+                    exec.CheckCallingThread()
+                    cont v
+            let ReturnFrom (t : Flow<'T>) : Flow<'T> = t
+            let Zero : Flow<unit> =
+                fun (exec, cont) ->
+                    exec.CheckCallingThread()
+                    cont ()
 
-        let For (s : seq<'T>) (ft : 'T -> Flow<unit>) : Flow<unit> =
-            fun (exec, cont) ->
-                exec.CheckCallingThread()
+            let For (s : seq<'T>) (ft : 'T -> Flow<unit>) : Flow<unit> =
+                fun (exec, cont) ->
+                    exec.CheckCallingThread()
 
-                do
-                    use e = s.GetEnumerator ()
+                    do
+                        let e = s.GetEnumerator ()
+                        exec.PushDisposable e
+                        let rec ic () =
+                            if e.MoveNext () then
+                                let t = ft e.Current
+                                t (exec, ic)
+                            else
+                                exec.PopHandler ()
+                                Disposable.dispose e
+
+                        ic ()
+
+                    cont ()
+            let While (e : unit -> bool) (t : Flow<unit>) : Flow<unit> =
+                fun (exec, cont) ->
+                    exec.CheckCallingThread()
 
                     let rec ic () =
-                        if e.MoveNext () then
-                            let t = ft e.Current
+                        exec.CheckCallingThread()
+                        if e () then
                             t (exec, ic)
 
                     ic ()
 
-                cont ()
-        let While (e : unit -> bool) (t : Flow<unit>) : Flow<unit> =
-            fun (exec, cont) ->
-                exec.CheckCallingThread()
+                    cont ()
 
-                let rec ic () =
+            let Using (d : #IDisposable) (ft : #IDisposable -> Flow<'T>) : Flow<'T>=
+                fun (exec, cont) ->
                     exec.CheckCallingThread()
-                    if e () then
-                        t (exec, ic)
 
-                ic ()
+                    exec.PushDisposable d
 
-                cont ()
+                    let t = ft d
 
-        let Using (d : #IDisposable) (ft : #IDisposable -> Flow<'T>) : Flow<'T>=
-            fun (exec, cont) ->
-                exec.CheckCallingThread()
+                    let ic v =
+                        exec.CheckCallingThread ()
+                        exec.PopHandler ()
+                        Disposable.dispose d
+                        cont v
 
-                let t = ft d
+                    t (exec, ic)
+            let TryFinally (t : Flow<'T>) (handler : unit->unit) : Flow<'T> =
+                fun (exec, cont) ->
+                    exec.CheckCallingThread()
 
-                let ic v =
-                    exec.CheckCallingThread ()
-                    exec.PopHandler ()
-                    d.Dispose ()
-                    cont v
+                    exec.PushFinallyHandler handler
 
-                exec.PushDisposable d
+                    let ic v =
+                        exec.CheckCallingThread ()
+                        exec.PopHandler ()
+                        handler ()
+                        cont v
 
-                t (exec, ic)
-        let TryFinally (t : Flow<'T>) (handler : unit->unit) : Flow<'T> =
-            fun (exec, cont) ->
-                exec.CheckCallingThread()
 
-                let ic v =
-                    exec.CheckCallingThread ()
-                    exec.PopHandler ()
-                    handler ()
-                    cont v
+                    t (exec, ic)
+            let TryWith (t : Flow<'T>) (fu : exn->Flow<'T>) : Flow<'T> =
+                fun (exec, cont) ->
+                    exec.CheckCallingThread()
 
-                exec.PushFinallyHandler handler
+                    let handler e =
+                        let u = fu e
+                        u (exec, cont)
 
-                t (exec, ic)
-        let TryWith (t : Flow<'T>) (fu : exn->Flow<'T>) : Flow<'T> =
-            fun (exec, cont) ->
-                exec.CheckCallingThread()
+                    let ic v =
+                        exec.CheckCallingThread ()
+                        exec.PopHandler ()
+                        cont v
 
-                let handler e =
-                    let u = fu e
-                    u (exec, cont)
+                    exec.PushWithHandler handler
 
-                let ic v =
-                    exec.CheckCallingThread ()
-                    exec.PopHandler ()
-                    cont v
+                    t (exec, ic)
 
-                exec.PushWithHandler handler
+        type FlowBuilder() =
 
-                t (exec, ic)
+            member inline x.Bind(t,fu)      = FlowModule.Bind t fu
+            member inline x.Combine(t,u)    = FlowModule.Combine t u
+
+            member inline x.Delay(dt)       = FlowModule.Delay dt
+
+            member inline x.Return(v)       = FlowModule.Return v
+            member inline x.ReturnFrom(t)   = FlowModule.ReturnFrom t
+            member inline x.Zero()          = FlowModule.Zero
+
+            member inline x.For(s,ft)       = FlowModule.For s ft
+            member inline x.While(g,t)      = FlowModule.While g t
+
+            member inline x.Using(t,a)      = FlowModule.Using t a
+            member inline x.TryFinally(t,a) = FlowModule.TryFinally t a
+            member inline x.TryWith(t,a)    = FlowModule.TryWith t a
+
+    open ComputationExpression
+
+    let flow = FlowBuilder ()
 
     module Flow =
 
@@ -419,24 +455,3 @@ module internal Gem =
                         if not result then failwith "Task execution failed"
 
                     exec.Context.RegisterContinuation exec ar.AsyncWaitHandle ic
-
-
-    type FlowBuilder() =
-
-        member inline x.Bind(t,fu)      = FlowModule.Bind t fu
-        member inline x.Combine(t,u)    = FlowModule.Combine t u
-
-        member inline x.Delay(dt)       = FlowModule.Delay dt
-
-        member inline x.Return(v)       = FlowModule.Return v
-        member inline x.ReturnFrom(t)   = FlowModule.ReturnFrom t
-        member inline x.Zero()          = FlowModule.Zero
-
-        member inline x.For(s,ft)       = FlowModule.For s ft
-        member inline x.While(g,t)      = FlowModule.While g t
-
-        member inline x.Using(t,a)      = FlowModule.Using t a
-        member inline x.TryFinally(t,a) = FlowModule.TryFinally t a
-        member inline x.TryWith(t,a)    = FlowModule.TryWith t a
-
-    let flow = FlowBuilder ()
