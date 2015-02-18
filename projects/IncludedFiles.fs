@@ -256,6 +256,8 @@ module internal Multiplex =
     open System.Threading.Tasks
 
     module Details =
+        let emptyAsyncCallback = AsyncCallback (fun ar -> ())
+
         type FlowInterrupt =
             | FlowCancelled
             | Exception     of exn
@@ -419,7 +421,7 @@ module internal Multiplex =
                     for kv in toBeRemoved do
                         ignore <| unprotected_continuations.Remove kv.Key
 
-            member x.HasContinuations = 
+            member x.HasContinuations =
                 x.CheckCallingThread ()
 
                 // unprotected access ok as we checked calling thread
@@ -544,10 +546,11 @@ module internal Multiplex =
                             else
                                 exec.PopHandler ()
                                 Disposable.dispose e
+                                cont ()
+
 
                         ic ()
 
-                    cont ()
             let whileDo (e : unit -> bool) (t : Flow<unit>) : Flow<unit> =
                 fun (exec, cont) ->
                     exec.CheckCallingThread()
@@ -556,10 +559,11 @@ module internal Multiplex =
                         exec.CheckCallingThread()
                         if e () then
                             t (exec, ic)
+                        else
+                            cont ()
 
                     ic ()
 
-                    cont ()
 
             let using (d : #IDisposable) (ft : #IDisposable -> Flow<'T>) : Flow<'T>=
                 fun (exec, cont) ->
@@ -691,6 +695,17 @@ module internal Multiplex =
 
                 exec.Context.RegisterContinuation exec waitHandle ic
 
+        let adaptLegacyAsync (ar : IAsyncResult) (endAsync : IAsyncResult->'T) : Flow<'T> =
+            fun (exec, cont) ->
+                exec.CheckCallingThread ()
+
+                let ic key =
+                    exec.Context.UnregisterContinuation key
+
+                    cont (endAsync ar)
+
+                exec.Context.RegisterContinuation exec ar.AsyncWaitHandle ic
+
         let adaptTask (t : Task<'T>) : Flow<'T> =
             fun (exec, cont) ->
                 exec.CheckCallingThread()
@@ -740,7 +755,7 @@ module internal Multiplex =
 namespace Included
 module IncludeMetaData =
     [<Literal>]
-    let IncludeDate = "2015-02-18T21:01:09"
+    let IncludeDate = "2015-02-18T21:53:10"
     [<Literal>]
     let Include_0 = @"https://raw.githubusercontent.com/mrange/FsInclude/master/src/Modules/BasicModule.fs"
     [<Literal>]

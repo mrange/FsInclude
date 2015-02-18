@@ -24,8 +24,6 @@ module internal Multiplex =
     open System.Threading.Tasks
 
     module Details =
-        let emptyAsyncCallback = AsyncCallback (fun ar -> ())
-
         type FlowInterrupt =
             | FlowCancelled
             | Exception     of exn
@@ -314,10 +312,10 @@ module internal Multiplex =
                             else
                                 exec.PopHandler ()
                                 Disposable.dispose e
+                                cont ()
 
                         ic ()
 
-                    cont ()
             let whileDo (e : unit -> bool) (t : Flow<unit>) : Flow<unit> =
                 fun (exec, cont) ->
                     exec.CheckCallingThread()
@@ -326,10 +324,10 @@ module internal Multiplex =
                         exec.CheckCallingThread()
                         if e () then
                             t (exec, ic)
+                        else
+                            cont ()
 
                     ic ()
-
-                    cont ()
 
             let using (d : #IDisposable) (ft : #IDisposable -> Flow<'T>) : Flow<'T>=
                 fun (exec, cont) ->
