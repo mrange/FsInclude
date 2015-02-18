@@ -423,3 +423,26 @@ module internal TestMultiplex =
         eq 0 !r4                                "child handlers - variant 3, r4"
 
         ()
+
+    [<Test>]
+    let ``test adapt legacy async`` () =
+        let expected = [|1uy;2uy;3uy;4uy|]
+
+        let f =
+            flow {
+                use ms = new System.IO.MemoryStream (expected)
+                let buf = Array.zeroCreate 100
+                let ar = ms.BeginRead (buf, 0, buf.Length, null, null)
+
+                let! read = Flow.adaptLegacyAsync ar (fun ar -> ms.EndRead ar)
+
+                return read, buf
+            }
+
+        let read, buf= Flow.run f
+
+        eq expected.Length  read        "legacy async, read"
+        eq 100              buf.Length  "legacy async, buf.Length"
+        |> Option.bind (fun _ -> eq expected buf.[0..(expected.Length - 1)] "legacy async, buf")
+
+        ()

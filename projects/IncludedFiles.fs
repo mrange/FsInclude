@@ -18,6 +18,11 @@ namespace Included.FsInclude
 
 module internal Opt =
 
+    let inline valueOrDefault (defaultValue : 'T) (v : 'T option) : 'T =
+        match v with
+        | Some vv   -> vv
+        | _         -> defaultValue
+
     let lift1
         (c  : 'T0 -> 'T )
         (v0 : 'T0 option)
@@ -44,286 +49,54 @@ module internal Opt =
         match v0, v1, v2 with
         | Some s0, Some s1, Some s2 -> Some <| c s0 s1 s2
         | _ -> None
+
+    let lift4
+        (c  : 'T0 -> 'T1 -> 'T2 -> 'T3 -> 'T )
+        (v0 : 'T0 option)
+        (v1 : 'T1 option)
+        (v2 : 'T2 option)
+        (v3 : 'T3 option)
+        : 'T option =
+        match v0, v1, v2, v3 with
+        | Some s0, Some s1, Some s2, Some s3 -> Some <| c s0 s1 s2 s3
+        | _ -> None
+
+    let lift5
+        (c  : 'T0 -> 'T1 -> 'T2 -> 'T3 -> 'T4 -> 'T )
+        (v0 : 'T0 option)
+        (v1 : 'T1 option)
+        (v2 : 'T2 option)
+        (v3 : 'T3 option)
+        (v4 : 'T4 option)
+        : 'T option =
+        match v0, v1, v2, v3, v4 with
+        | Some s0, Some s1, Some s2, Some s3, Some s4 -> Some <| c s0 s1 s2 s3 s4
+        | _ -> None
+
+module internal Numerical =
+
+    let inline inRange v min max : bool =
+        v >= min && v <= max
+
+    let inline testRange v min max : int =
+        if v < min then -1
+        elif v > max then 1
+        else 0
+
+    let inline clamp v min max : 'T =
+        if v < min then min
+        elif v > max then max
+        else v
+
+    let inline lerp t min max : 'T =
+        let zero = LanguagePrimitives.GenericZero
+        let one  = LanguagePrimitives.GenericOne
+        if t <= zero then min
+        elif t >= one then max
+        else t*(max - min) + min
+
+    let inline mad x y z : 'T = x*y + z
 // @@@ END_DOCUMENT: https://raw.githubusercontent.com/mrange/FsInclude/master/src/Modules/BasicModule.fs
-// @@@ INCLUDE: https://raw.githubusercontent.com/mrange/FsInclude/master/src/Modules/StreamModule.fs
-// @@@ BEGIN_DOCUMENT: https://raw.githubusercontent.com/mrange/FsInclude/master/src/Modules/StreamModule.fs
-// Copyright 2015 Mårten Rånge
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-namespace Included.FsInclude
-
-module internal Stream =
-
-    type Context() =
-        member val IsCancellable    = false with get, set
-        member val Continue         = true  with get, set
-
-    type Receiver<'T>   = Context*('T -> unit)
-    type Stream<'T>     = Receiver<'T> -> unit
-
-    let inline all (f : 'T -> bool) (s : Stream<'T>) : bool =
-        let result  = ref true
-        let c       = Context()
-        c.IsCancellable <- true
-        let inline r v =
-            result := !result && f v
-            c.Continue <- !result
-        s (c,r)
-        !result
-
-    let inline any (f : 'T -> bool) (s : Stream<'T>) : bool =
-        let result  = ref false
-        let c       = Context()
-        c.IsCancellable <- true
-        let inline r v =
-            result := !result || f v
-            c.Continue <- not !result
-        s (c,r)
-        !result
-
-    let inline append (s1 : Stream<'T>) (s2 : Stream<'T>) : Stream<'T> =
-        fun (context,receiver) ->
-            s1 (context, receiver)
-            s2 (context, receiver)
-
-    let inline choose (f : 'T -> 'U option) (s : Stream<'T>) : Stream<'U> =
-        fun (context,receiver) ->
-            let inline r v =
-                let o = f v
-                match o with
-                | Some vv -> receiver vv
-                | _ -> ()
-            s (context,r)
-
-    let inline collect (f : 'T -> Stream<'U>) (s : Stream<'T>) : Stream<'U> =
-        fun (context,receiver) ->
-            let inline r v =
-                let is = f v
-                is (context, receiver)
-            s (context,r)
-
-    let inline concat (s : Stream<Stream<'T>>) : Stream<'T> =
-        fun (context,receiver) ->
-            let inline r v =
-                v (context, receiver)
-            s (context, r)
-
-    let inline delay (ds : unit -> Stream<'T>) : Stream<'T> =
-        fun (context,receiver) ->
-            let s = ds ()
-            s (context, receiver)
-
-    let empty : Stream<'T> =
-        fun (context,receiver) ->
-            ()
-
-    let inline enumerate (s : Stream<'T>) : Stream<int*'T> =
-        fun (context,receiver) ->
-            let i = ref 0
-            let inline r v =
-                receiver (!i, v)
-                i := !i + 1
-            s (context,r)
-
-    let inline filter (f : 'T -> bool) (s : Stream<'T>) : Stream<'T> =
-        fun (context,receiver) ->
-            let inline r v =
-                if (f v) then receiver v
-            s (context,r)
-
-    let inline fold (f : 'State -> 'T -> 'State) (initial : 'State) (s : Stream<'T>) : 'State =
-        let state   = ref initial
-        let c       = Context()
-        let inline r v =
-            state := f !state v
-        s (c,r)
-        !state
-
-    let inline iter (f : 'T -> unit) (s : Stream<'T>) : unit =
-        let c = Context()
-        let inline r v =
-            f v
-        s (c,r)
-
-    let inline isEmpty (s : Stream<'T>) : bool =
-        let result  = ref true
-        let c       = Context()
-        c.IsCancellable <- true
-        let inline r _ =
-            result := false
-            c.Continue <- false
-        s (c,r)
-        !result
-
-    let inline map (f : 'T -> 'U) (s : Stream<'T>) : Stream<'U> =
-        fun (context,receiver) ->
-            let inline r v = receiver (f v)
-            s (context,r)
-
-    let inline ofRange (inclusiveBegin : 'T) (increment : 'T) (exclusiveEnd : 'T) : Stream<'T> =
-        fun (context,receiver) ->
-            if context.IsCancellable then
-                let mutable i = inclusiveBegin
-                while i < exclusiveEnd && (receiver i; context.Continue) do
-                    i <- i + increment
-            else
-                let mutable i = inclusiveBegin
-                while i < exclusiveEnd do
-                    receiver i
-                    i <- i + increment
-
-    let inline ofArray (a : 'T []) : Stream<'T> =
-        fun (context,receiver) ->
-            if context.IsCancellable then
-                let l = a.Length
-                let mutable i = 0
-                while i < l && (receiver a.[i]; context.Continue) do
-                    i <- i + 1
-            else
-                for v in a do
-                    receiver v
-
-    let inline ofList (l : 'T list) : Stream<'T> =
-        fun (context,receiver) ->
-            if context.IsCancellable then
-                let mutable i = l
-                while not i.IsEmpty && (receiver i.Head; context.Continue) do
-                    i <- i.Tail
-            else
-                let mutable i = l
-                while not i.IsEmpty do
-                    receiver i.Head
-                    i <- i.Tail
-
-
-    let inline ofSeq (l : seq<'T>) : Stream<'T> =
-        fun (context,receiver) ->
-            if context.IsCancellable then
-                use e = l.GetEnumerator ()
-                while e.MoveNext () && (receiver e.Current; context.Continue) do
-                    ()
-            else
-                use e = l.GetEnumerator ()
-                while e.MoveNext () do
-                    receiver e.Current
-
-    let inline skip (n : int) (s : Stream<'T>) : Stream<'T> =
-        fun (context,receiver) ->
-            let rn = ref n
-            let inline r v =
-                if !rn > 0 then
-                    rn := !rn - 1
-                else
-                    receiver v
-            s (context,r)
-
-    let inline singleton (v : 'T) : Stream<'T> =
-        fun (context,receiver) ->
-            receiver v
-
-    let inline take (n : int) (s : Stream<'T>) : Stream<'T> =
-        fun (context,receiver) ->
-            context.IsCancellable <- true
-            let rn = ref n
-            let inline r v =
-                if !rn > 0 then
-                    rn := !rn - 1
-                    receiver v
-                else
-                    context.Continue <- false
-            s (context,r)
-
-    let inline toArray (s : Stream<'T>) : 'T [] =
-        let ra = ResizeArray<_> ()
-        let c = Context()
-        let inline r v = ra.Add v
-        s (c,r)
-        ra.ToArray ()
-
-    let inline toList (s : Stream<'T>) : 'T list =
-        let l = ref List.empty
-        let c = Context()
-        let inline r v = l := v::!l
-        s (c,r)
-        List.rev !l
-
-    let inline toSum (initial : 'T) (s : Stream<'T>) : 'T =
-        let sum = ref initial
-        let c = Context()
-        let inline r v = sum := !sum + v
-        s (c,r)
-        !sum
-
-(*
-
-type FReceiver<'T> =
-    interface
-        abstract Receive: 'T -> bool
-    end
-
-type FStream<'T> = FReceiver<'T> -> unit
-
-module FStream =
-
-    let inline filter (f : 'T -> bool) (s : FStream<'T>) : FStream<'T> =
-        fun receiver ->
-            let r =
-                {
-                    new FReceiver<'T> with
-                        override x.Receive v =
-                            if (f v) then receiver.Receive v
-                            else true
-                }
-            s r
-
-    let inline map (f : 'T -> 'U) (s : FStream<'T>) : FStream<'U> =
-        fun receiver ->
-            let r =
-                {
-                    new FReceiver<'T> with
-                        override x.Receive v = receiver.Receive (f v)
-                }
-            s r
-
-    let inline ofArray (a : 'T []) : FStream<'T> =
-        fun receiver ->
-            let l = a.Length
-            let mutable i = 0
-            while i < l && (receiver.Receive a.[i]) do
-                i <- i + 1
-
-    let inline ofRange (f : 'T) (inc : 'T) (t : 'T) : FStream<'T> =
-        fun receiver ->
-            let mutable i = f
-            while i < t && receiver.Receive i do
-                i <- i + inc
-
-
-    let inline toSum (initial : 'T) (s : FStream<'T>) : 'T =
-        let sum = ref initial
-        let r =
-            {
-                new FReceiver<'T> with
-                    override x.Receive v =
-                        sum := !sum + v
-                        true
-            }
-
-        s r
-        !sum
-*)
-// @@@ END_DOCUMENT: https://raw.githubusercontent.com/mrange/FsInclude/master/src/Modules/StreamModule.fs
 // @@@ INCLUDE: https://raw.githubusercontent.com/mrange/FsInclude/master/src/Common/Disposable.fs
 // @@@ BEGIN_DOCUMENT: https://raw.githubusercontent.com/mrange/FsInclude/master/src/Common/Disposable.fs
 // @@@ INCLUDE: https://raw.githubusercontent.com/mrange/FsInclude/master/src/Common/Common.fs
@@ -423,7 +196,15 @@ type internal BaseDisposable() =
                 try
                     x.OnDispose ()
                 with
-                | e -> Log.errorf "%s.Dispose () threw exception: %A" "" e
+                | e -> Log.errorf "%s.Dispose () threw exception: %A" (x.GetType().Name) e
+
+
+    member x.IsDisposed = x.isDisposed <> 0
+
+    member x.IsNotDisposed = x.isDisposed = 0
+
+    member x.CheckDisposed () =
+        if x.IsDisposed then raise (System.ObjectDisposedException (x.GetType().Name))
 
     abstract OnDispose: unit -> unit
 
@@ -435,16 +216,536 @@ type internal ActionDisposable(action : unit -> unit) =
 module internal Disposable =
     let onExitDo (action : unit -> unit) : System.IDisposable = upcast new ActionDisposable(action)
 
+    let inline dispose (d : System.IDisposable) =
+        if d <> null then d.Dispose ()
+
+    let noThrowDispose (d : System.IDisposable) =
+        if d <> null then
+            try
+                d.Dispose ()
+            with
+            | e ->
+                Log.errorf "%s.Dispose () threw exception: %A" (d.GetType().Name) e
+
 // @@@ END_DOCUMENT: https://raw.githubusercontent.com/mrange/FsInclude/master/src/Common/Disposable.fs
+// @@@ INCLUDE: https://raw.githubusercontent.com/mrange/FsInclude/master/src/Responsiveness/MultiplexModule.fs
+// @@@ BEGIN_DOCUMENT: https://raw.githubusercontent.com/mrange/FsInclude/master/src/Responsiveness/MultiplexModule.fs
+// @@@ SKIPPED_INCLUDE (Already seen): https://raw.githubusercontent.com/mrange/FsInclude/master/src/Common/Disposable.fs
+// Copyright 2015 Mårten Rånge
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+namespace Included.FsInclude
+
+module internal Multiplex =
+
+    open System
+    open System.Collections.Generic
+    open System.Diagnostics
+    open System.Threading
+    open System.Threading.Tasks
+
+    module Details =
+        type FlowInterrupt =
+            | FlowCancelled
+            | Exception     of exn
+
+        type FlowHandler = FlowInterrupt -> bool
+
+        type FlowContinuation = int->unit
+
+        [<NoEquality;NoComparison;Sealed>]
+        type FlowExecutor(ctx : FlowContext) as x =
+
+            let mutable unprotected_handlers : FlowHandler list = []
+
+            do
+                ctx.AddExecutor x
+
+            member x.Context = ctx
+
+            member x.CheckCallingThread () =
+                ctx.CheckCallingThread ()
+
+            member x.Push (handler : FlowHandler) : unit =
+                x.CheckCallingThread ()
+
+                if ctx.IsDisposed then ()   // TODO: Trace?
+                else
+                    // unprotected access ok as we checked calling thread
+                    unprotected_handlers <- handler::unprotected_handlers
+
+            member x.PushDisposable (d : IDisposable) : unit =
+                x.Push (fun _ -> Disposable.dispose d; true)
+
+            member x.PushFinallyHandler (handler : unit -> unit) : unit =
+                x.Push (fun _ -> handler (); true)
+
+            member x.PushWithHandler (handler : exn -> unit) : unit =
+                x.Push (
+                    fun fi ->
+                        match fi with
+                        | FlowCancelled -> true
+                        | Exception e   ->
+                            handler e
+                            false
+                    )
+
+            member x.PopHandler () =
+                x.CheckCallingThread ()
+
+                // unprotected access ok as we checked calling thread
+                match unprotected_handlers with
+                | _::hs -> unprotected_handlers <- hs
+                | _ -> failwith "Handler stack empty"
+
+            member x.RaiseException (e : exn) : exn option =
+                x.CheckCallingThread ()
+
+                let rec raiseException (e : exn) (hs : FlowHandler list) : (exn option)*(FlowHandler list) =
+                    match hs with
+                    | []    -> (Some e),[]
+                    | h::hh ->
+                        let result =
+                            try
+                                if h (Exception e) then
+                                    Some e
+                                else
+                                    None
+
+                            with
+                            | e -> Some e
+
+                        match result with
+                        | None      -> None,hh
+                        | Some ee   -> raiseException ee hh
+
+                // unprotected access ok as we checked calling thread
+                let oe,hs = raiseException e unprotected_handlers
+
+                unprotected_handlers <- hs
+
+                oe
+
+            member x.CancelOperation () : exn list =
+                x.CheckCallingThread ()
+
+                let rec cancelOperation (exns : exn list) (hs : FlowHandler list) : exn list =
+                    match hs with
+                    | []    -> exns
+                    | h::hh ->
+                        let result =
+                            try
+                                ignore <| h FlowCancelled
+                                exns
+                            with
+                            | e -> e::exns
+
+                        cancelOperation result hh
+
+                // unprotected access ok as we checked calling thread
+                let exns = cancelOperation [] unprotected_handlers
+
+                unprotected_handlers <- []
+
+                exns
+
+
+        and [<NoEquality;NoComparison;Sealed>] FlowContext() =
+            inherit BaseDisposable()
+
+            let threadId                    = Thread.CurrentThread.ManagedThreadId
+            let unprotected_continuations   = Dictionary<int, FlowExecutor*WaitHandle*FlowContinuation>()
+
+            let mutable unprotected_nextId  = 0
+
+            let unprotected_executors       = ResizeArray<FlowExecutor>()
+
+            let unprotected_hasContinuations () = unprotected_continuations.Count > 0
+
+            let unprotected_flatContinuations ()=
+                [|
+                    for kv in unprotected_continuations ->
+                        let exec, waitHandle, continuation = kv.Value
+                        kv.Key, exec, waitHandle, continuation
+                |]
+
+
+            override x.OnDispose () =
+                // TODO: Throw aggregate exception?
+                ignore <| x.CancelExecution ()
+
+            member x.CheckCallingThread () =
+                let id = Thread.CurrentThread.ManagedThreadId
+                if id <> threadId then failwithf "Wrong calling thread, expected: %d, actual: %d" threadId id
+
+            member x.RegisterContinuation (exec : FlowExecutor) (waitHandle : WaitHandle) (continuation : FlowContinuation) : unit =
+                x.CheckCallingThread ()
+
+                // unprotected access ok as we checked calling thread
+                let id = unprotected_nextId
+                unprotected_nextId <- unprotected_nextId + 1
+
+                // unprotected access ok as we checked calling thread
+                unprotected_continuations.Add (id, (exec, waitHandle, continuation))
+
+            member x.UnregisterContinuation (key : int) : unit =
+                x.CheckCallingThread ()
+
+                // unprotected access ok as we checked calling thread
+                ignore <| unprotected_continuations.Remove key
+
+            member x.UnregisterAllMatchingContinuations (ctx : FlowContext) : unit =
+                x.CheckCallingThread ()
+
+                // unprotected access ok as we checked calling thread
+                let toBeRemoved =
+                    unprotected_continuations
+                    |> Seq.filter (fun kv -> let exec,_,_ = kv.Value in obj.ReferenceEquals (exec.Context, ctx))
+                    |> Seq.toArray
+
+                // unprotected access ok as we checked calling thread
+                if toBeRemoved.Length > 0 then
+                    for kv in toBeRemoved do
+                        ignore <| unprotected_continuations.Remove kv.Key
+
+            member x.HasContinuations = 
+                x.CheckCallingThread ()
+
+                // unprotected access ok as we checked calling thread
+                unprotected_continuations.Count > 0
+
+            member x.Continuations =
+                x.CheckCallingThread ()
+
+                // unprotected access ok as we checked calling thread
+                unprotected_flatContinuations ()
+
+            member x.AwaitContinuations (exe : exn -> unit) : bool =
+                x.CheckCallingThread ()
+
+                // unprotected access ok as we checked calling thread
+                if not (unprotected_hasContinuations ()) then false
+                else
+                    let flat = unprotected_flatContinuations ()
+
+                    let waithandles =
+                        [|
+                            for _,_,waitHandle,_ in flat -> waitHandle
+                        |]
+
+                    let signaled = WaitHandle.WaitAny waithandles
+
+                    let key,exec,_,continuation = flat.[signaled]
+
+                    try
+                        continuation key
+                    with
+                    | e ->
+                        let oe = exec.RaiseException e
+                        match oe with
+                        | Some ee -> exe ee
+                        | _ -> ()
+
+                    // unprotected access ok as we checked calling thread
+                    unprotected_hasContinuations ()
+
+            member x.AwaitAllContinuations (exe : exn -> unit) : unit =
+                while x.AwaitContinuations exe do
+                    ()
+
+            member x.AddExecutor (exec : FlowExecutor) : unit =
+                x.CheckCallingThread ()
+
+                // unprotected access ok as we checked calling thread
+                unprotected_executors.Add exec
+
+            member x.CancelExecution () : exn [] =
+                x.CheckCallingThread ()
+
+                let exns = ResizeArray<exn> ()
+
+                // unprotected access ok as we checked calling thread
+                let execs= unprotected_executors.ToArray ()
+
+                unprotected_executors.Clear ()
+
+                x.UnregisterAllMatchingContinuations x
+
+                for exec in execs do
+                    exns.AddRange (exec.CancelOperation ())
+
+                exns.ToArray ()
+
+        type Continuation<'T> = 'T -> unit
+
+    open Details
+
+    type Flow<'T> = FlowExecutor*Continuation<'T> -> unit
+
+    module ComputationExpression =
+        module FlowModule =
+
+            let bind (t : Flow<'T>) (fu : 'T -> Flow<'U>) : Flow<'U> =
+                fun (exec, cont) ->
+                    exec.CheckCallingThread()
+                    let tcont v =
+                        exec.CheckCallingThread()
+                        let u = fu v
+                        u (exec, cont)
+
+                    t (exec, tcont)
+            let combine (t : Flow<unit>) (u : Flow<'T>) : Flow<'T> =
+                fun (exec, cont) ->
+                    exec.CheckCallingThread()
+                    let tcont _ =
+                        exec.CheckCallingThread()
+                        u (exec, cont)
+
+                    t (exec, tcont)
+
+            let delay (dt : unit -> Flow<'T>) : Flow<'T> =
+                fun (exec, cont) ->
+                    exec.CheckCallingThread()
+                    let t = dt ()
+                    t (exec, cont)
+
+            let returnValue (v : 'T) : Flow<'T> =
+                fun (exec, cont) ->
+                    exec.CheckCallingThread()
+                    cont v
+            let returnFrom (t : Flow<'T>) : Flow<'T> = t
+            let zero : Flow<unit> =
+                fun (exec, cont) ->
+                    exec.CheckCallingThread()
+                    cont ()
+
+            let forEach (s : seq<'T>) (ft : 'T -> Flow<unit>) : Flow<unit> =
+                fun (exec, cont) ->
+                    exec.CheckCallingThread()
+
+                    do
+                        let e = s.GetEnumerator ()
+                        exec.PushDisposable e
+                        let rec ic () =
+                            if e.MoveNext () then
+                                let t = ft e.Current
+                                t (exec, ic)
+                            else
+                                exec.PopHandler ()
+                                Disposable.dispose e
+
+                        ic ()
+
+                    cont ()
+            let whileDo (e : unit -> bool) (t : Flow<unit>) : Flow<unit> =
+                fun (exec, cont) ->
+                    exec.CheckCallingThread()
+
+                    let rec ic () =
+                        exec.CheckCallingThread()
+                        if e () then
+                            t (exec, ic)
+
+                    ic ()
+
+                    cont ()
+
+            let using (d : #IDisposable) (ft : #IDisposable -> Flow<'T>) : Flow<'T>=
+                fun (exec, cont) ->
+                    exec.CheckCallingThread()
+
+                    exec.PushDisposable d
+
+                    let t = ft d
+
+                    let ic v =
+                        exec.CheckCallingThread ()
+                        exec.PopHandler ()
+                        Disposable.dispose d
+                        cont v
+
+                    t (exec, ic)
+            let tryFinally (t : Flow<'T>) (handler : unit->unit) : Flow<'T> =
+                fun (exec, cont) ->
+                    exec.CheckCallingThread()
+
+                    exec.PushFinallyHandler handler
+
+                    let ic v =
+                        exec.CheckCallingThread ()
+                        exec.PopHandler ()
+                        handler ()
+                        cont v
+
+
+                    t (exec, ic)
+            let tryWith (t : Flow<'T>) (fu : exn->Flow<'T>) : Flow<'T> =
+                fun (exec, cont) ->
+                    exec.CheckCallingThread()
+
+                    let handler e =
+                        let u = fu e
+                        u (exec, cont)
+
+                    let ic v =
+                        exec.CheckCallingThread ()
+                        exec.PopHandler ()
+                        cont v
+
+                    exec.PushWithHandler handler
+
+                    t (exec, ic)
+
+        type FlowBuilder() =
+
+            member inline x.Bind(t,fu)      = FlowModule.bind t fu
+            member inline x.Combine(t,u)    = FlowModule.combine t u
+
+            member inline x.Delay(dt)       = FlowModule.delay dt
+
+            member inline x.Return(v)       = FlowModule.returnValue v
+            member inline x.ReturnFrom(t)   = FlowModule.returnFrom t
+            member inline x.Zero()          = FlowModule.zero
+
+            member inline x.For(s,ft)       = FlowModule.forEach s ft
+            member inline x.While(g,t)      = FlowModule.whileDo g t
+
+            member inline x.Using(t,a)      = FlowModule.using t a
+            member inline x.TryFinally(t,a) = FlowModule.tryFinally t a
+            member inline x.TryWith(t,a)    = FlowModule.tryWith t a
+
+    open ComputationExpression
+
+    let flow = FlowBuilder ()
+
+    module Flow =
+
+        let run (t : Flow<'T>) : 'T =
+            use ctx     = new FlowContext()
+            let exec    = FlowExecutor(ctx)
+
+            let result = ref None
+
+            let cont v  = result := Some v
+            let exe ex  = raise ex
+
+            try
+                t (exec, cont)
+                ctx.AwaitAllContinuations exe
+            with
+            | e ->
+                let oe = exec.RaiseException e
+                match oe with
+                | Some ee -> exe ee
+                | _ -> ctx.AwaitAllContinuations exe
+
+            result.Value.Value
+
+        let startChild (t : Flow<'T>) : Flow<Flow<'T>> =
+            fun (exec, cont) ->
+                exec.CheckCallingThread()
+                let rcont   = ref None
+                let rvalue  = ref None
+
+                let child : Flow<'T> =
+                    fun (exec, cont) ->
+                        exec.CheckCallingThread ()
+
+                        rcont := Some cont
+                        match !rvalue with
+                        | Some v    -> cont v
+                        | _         -> ()
+
+                let icont v =
+                    exec.CheckCallingThread ()
+
+                    rvalue := Some v
+                    match !rcont with
+                    | Some c    -> c v
+                    | _         -> ()
+
+                let cexec = FlowExecutor(exec.Context)
+                t (cexec, icont)
+
+                cont child
+
+        let adaptWaitHandle (waitHandle : WaitHandle) : Flow<unit> =
+            fun (exec, cont) ->
+                exec.CheckCallingThread()
+
+                let ic key =
+                    exec.Context.UnregisterContinuation key
+
+                    cont ()
+
+                exec.Context.RegisterContinuation exec waitHandle ic
+
+        let adaptTask (t : Task<'T>) : Flow<'T> =
+            fun (exec, cont) ->
+                exec.CheckCallingThread()
+                let inline tryRun () =
+                    match t.Status with
+                    | TaskStatus.Canceled           -> raise (OperationCanceledException ())
+                    | TaskStatus.Faulted            -> raise t.Exception
+                    | TaskStatus.RanToCompletion    -> cont t.Result; true
+                    | _ -> false
+
+                if tryRun () then ()
+                else
+                    let ar : IAsyncResult = upcast t
+
+                    let ic key =
+                        exec.Context.UnregisterContinuation key
+
+                        let result = tryRun ()
+
+                        if not result then failwith "Task execution failed"
+
+                    exec.Context.RegisterContinuation exec ar.AsyncWaitHandle ic
+
+        let adaptUnitTask (t : Task) : Flow<unit> =
+            fun (exec, cont) ->
+                exec.CheckCallingThread()
+                let inline tryRun () =
+                    match t.Status with
+                    | TaskStatus.Canceled           -> raise (OperationCanceledException ())
+                    | TaskStatus.Faulted            -> raise t.Exception
+                    | TaskStatus.RanToCompletion    -> cont (); true
+                    | _ -> false
+
+                if tryRun () then ()
+                else
+                    let ar : IAsyncResult = upcast t
+
+                    let ic key =
+                        exec.Context.UnregisterContinuation key
+
+                        let result = tryRun ()
+
+                        if not result then failwith "Task execution failed"
+
+                    exec.Context.RegisterContinuation exec ar.AsyncWaitHandle ic
+// @@@ END_DOCUMENT: https://raw.githubusercontent.com/mrange/FsInclude/master/src/Responsiveness/MultiplexModule.fs
 namespace Included
 module IncludeMetaData =
     [<Literal>]
-    let IncludeDate = "2015-02-02T20:27:04"
+    let IncludeDate = "2015-02-18T21:01:09"
     [<Literal>]
     let Include_0 = @"https://raw.githubusercontent.com/mrange/FsInclude/master/src/Modules/BasicModule.fs"
     [<Literal>]
-    let Include_1 = @"https://raw.githubusercontent.com/mrange/FsInclude/master/src/Modules/StreamModule.fs"
+    let Include_1 = @"https://raw.githubusercontent.com/mrange/FsInclude/master/src/Common/Disposable.fs"
     [<Literal>]
-    let Include_2 = @"https://raw.githubusercontent.com/mrange/FsInclude/master/src/Common/Disposable.fs"
+    let Include_2 = @"https://raw.githubusercontent.com/mrange/FsInclude/master/src/Common/Common.fs"
     [<Literal>]
-    let Include_3 = @"https://raw.githubusercontent.com/mrange/FsInclude/master/src/Common/Common.fs"
+    let Include_3 = @"https://raw.githubusercontent.com/mrange/FsInclude/master/src/Responsiveness/MultiplexModule.fs"

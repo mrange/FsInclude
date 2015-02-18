@@ -29,8 +29,8 @@ let IncludeFiles () =
         (Uri "https://raw.githubusercontent.com/mrange/FsInclude/master/src/")
         [|
             "Modules/BasicModule.fs"
-            "Modules/StreamModule.fs"
             "Common/Disposable.fs"
+            "Responsiveness/MultiplexModule.fs"
         |]
 
 do IncludeFiles ()

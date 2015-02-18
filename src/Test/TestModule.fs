@@ -56,60 +56,60 @@ module internal Test =
     let failf (format : StringFormat<'T, unit>) : 'T =
         ksprintf fail format
 
-    let eqexn (expected : exn) (action : unit -> 'T) (msg : string) : bool =
+    let eqexn (expected : exn) (action : unit -> 'T) (msg : string) : exn option =
         try
             let _ = action ()
             failf "EXPECTED_EXCEPTION: %A = <None>, %s" (expected.GetType().Name) msg
-            false
+            None
         with
         | e ->
             if expected = e then
-                true
+                Some e
             else
                 failf "EXPECTED_EXCEPTION: %A = %A, %s" expected e msg
-                false
+                None
 
-    let eqexnf (expected : exn) (action : unit -> 'T) (format : StringFormat<'U,bool>) : 'U =
+    let eqexnf (expected : exn) (action : unit -> 'T) (format : StringFormat<'U, exn option>) : 'U =
         ksprintf (eqexn expected action) format
 
-    let eq (expected : 'T) (actual : 'T) (msg : string) : bool =
+    let eq (expected : 'T) (actual : 'T) (msg : string) : 'T option =
         if expected = actual then
-            true
+            Some actual
         else
             failf "EXPECTED_EQ: %A = %A, %s" expected actual msg
-            false
+            None
 
-    let eqf (expected : 'T) (actual : 'T) (format : StringFormat<'U,bool>) : 'U =
+    let eqf (expected : 'T) (actual : 'T) (format : StringFormat<'U, 'T option>) : 'U =
         ksprintf (eq expected actual) format
 
-    let lte (expected : 'T) (actual : 'T) (msg : string) : bool =
+    let lte (expected : 'T) (actual : 'T) (msg : string) : 'T option =
         if expected <= actual then
-            true
+            Some actual
         else
             failf "EXPECTED_LTE: %A <= %A, %s" expected actual msg
-            false
+            None
 
-    let ltef (expected : 'T) (actual : 'T) (format : StringFormat<'U, bool>) : 'U =
+    let ltef (expected : 'T) (actual : 'T) (format : StringFormat<'U, 'T option>) : 'U =
         ksprintf (lte expected actual) format
 
-    let gte (expected : 'T) (actual : 'T) (msg : string) : bool =
+    let gte (expected : 'T) (actual : 'T) (msg : string) : 'T option =
         if expected >= actual then
-            true
+            Some actual
         else
             failf "EXPECTED_GTE: %A >= %A, %s" expected actual msg
-            false
+            None
 
-    let gtef (expected : 'T) (actual : 'T) (format : StringFormat<'U, bool>) : 'U =
+    let gtef (expected : 'T) (actual : 'T) (format : StringFormat<'U, 'T option>) : 'U =
         ksprintf (gte expected actual) format
 
-    let range (f : 'T) (t : 'T) (actual : 'T) (msg : string) : bool =
+    let range (f : 'T) (t : 'T) (actual : 'T) (msg : string) : 'T option =
         if f <= actual && actual <= t then
-            true
+            Some actual
         else
             failf "EXPECTED_RANGE: [%A,%A] <= %A, %s" f t actual msg
-            false
+            None
 
-    let rangef (f : 'T) (t : 'T) (actual : 'T) (format : StringFormat<'U,bool>) : 'U =
+    let rangef (f : 'T) (t : 'T) (actual : 'T) (format : StringFormat<'U, 'T option>) : 'U =
         ksprintf (range f t actual) format
 
     let runTestCases (assembly : Assembly) : bool =

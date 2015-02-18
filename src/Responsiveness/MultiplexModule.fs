@@ -24,6 +24,8 @@ module internal Multiplex =
     open System.Threading.Tasks
 
     module Details =
+        let emptyAsyncCallback = AsyncCallback (fun ar -> ())
+
         type FlowInterrupt =
             | FlowCancelled
             | Exception     of exn
@@ -187,7 +189,7 @@ module internal Multiplex =
                     for kv in toBeRemoved do
                         ignore <| unprotected_continuations.Remove kv.Key
 
-            member x.HasContinuations = 
+            member x.HasContinuations =
                 x.CheckCallingThread ()
 
                 // unprotected access ok as we checked calling thread
@@ -458,6 +460,17 @@ module internal Multiplex =
                     cont ()
 
                 exec.Context.RegisterContinuation exec waitHandle ic
+
+        let adaptLegacyAsync (ar : IAsyncResult) (endAsync : IAsyncResult->'T) : Flow<'T> =
+            fun (exec, cont) ->
+                exec.CheckCallingThread ()
+
+                let ic key =
+                    exec.Context.UnregisterContinuation key
+
+                    cont (endAsync ar)
+
+                exec.Context.RegisterContinuation exec ar.AsyncWaitHandle ic
 
         let adaptTask (t : Task<'T>) : Flow<'T> =
             fun (exec, cont) ->
