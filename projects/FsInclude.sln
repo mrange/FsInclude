@@ -1,0 +1,35 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2013
+VisualStudioVersion = 12.0.31101.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "FsInclude", "FsInclude.fsproj", "{29710579-8DB7-462E-A4BE-2A6798485B54}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{0CA03F58-F36B-47D1-B1E6-6D02FD6A3675}"
+	ProjectSection(SolutionItems) = preProject
+		..\..\.gitignore = ..\..\.gitignore
+		..\..\LICENSE = ..\..\LICENSE
+		..\..\README.md = ..\..\README.md
+	EndProjectSection
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "TestFsInclude", "TestFsInclude.fsproj", "{FD5C868A-8BA9-4E48-A6AC-8B7E302F7159}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{29710579-8DB7-462E-A4BE-2A6798485B54}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{29710579-8DB7-462E-A4BE-2A6798485B54}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{29710579-8DB7-462E-A4BE-2A6798485B54}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{29710579-8DB7-462E-A4BE-2A6798485B54}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FD5C868A-8BA9-4E48-A6AC-8B7E302F7159}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FD5C868A-8BA9-4E48-A6AC-8B7E302F7159}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FD5C868A-8BA9-4E48-A6AC-8B7E302F7159}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FD5C868A-8BA9-4E48-A6AC-8B7E302F7159}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

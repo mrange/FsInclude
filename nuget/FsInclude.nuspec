@@ -1,0 +1,25 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
+  <metadata schemaVersion="2">
+    <id>FsInclude</id>
+    <version>0.0.1</version>
+    <title>FsInclude</title>
+    <authors>Mårten Rånge</authors>
+    <owners>Mårten Rånge</owners>
+    <licenseUrl>http://opensource.org/licenses/Apache-2.0</licenseUrl>
+    <projectUrl>https://github.com/mrange/FsInclude</projectUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>FsInclude is a package used to include F# code from web or project files. Including source code is an alternative to referencing assemblies.</description>
+    <summary>FsInclude is a package used to include F# code from web or project files.</summary>
+    <tags>include F#</tags>
+    <frameworkAssemblies>
+    </frameworkAssemblies>
+    <releaseNotes>
+        * 0.0.1   - Beta release
+    </releaseNotes>
+  </metadata>
+  <files>
+    <file src="..\src\FsInclude\FsInclude.fs" target="FsInclude" />
+    <file src="content\Include_FsInclude.tt.pp" target="content" />
+  </files>
+</package>
