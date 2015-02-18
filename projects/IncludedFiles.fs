@@ -256,8 +256,6 @@ module internal Multiplex =
     open System.Threading.Tasks
 
     module Details =
-        let emptyAsyncCallback = AsyncCallback (fun ar -> ())
-
         type FlowInterrupt =
             | FlowCancelled
             | Exception     of exn
@@ -548,7 +546,6 @@ module internal Multiplex =
                                 Disposable.dispose e
                                 cont ()
 
-
                         ic ()
 
             let whileDo (e : unit -> bool) (t : Flow<unit>) : Flow<unit> =
@@ -563,7 +560,6 @@ module internal Multiplex =
                             cont ()
 
                     ic ()
-
 
             let using (d : #IDisposable) (ft : #IDisposable -> Flow<'T>) : Flow<'T>=
                 fun (exec, cont) ->
@@ -755,7 +751,7 @@ module internal Multiplex =
 namespace Included
 module IncludeMetaData =
     [<Literal>]
-    let IncludeDate = "2015-02-18T21:53:10"
+    let IncludeDate = "2015-02-18T22:58:01"
     [<Literal>]
     let Include_0 = @"https://raw.githubusercontent.com/mrange/FsInclude/master/src/Modules/BasicModule.fs"
     [<Literal>]
@@ -764,3 +760,4 @@ module IncludeMetaData =
     let Include_2 = @"https://raw.githubusercontent.com/mrange/FsInclude/master/src/Common/Common.fs"
     [<Literal>]
     let Include_3 = @"https://raw.githubusercontent.com/mrange/FsInclude/master/src/Responsiveness/MultiplexModule.fs"
+.com/mrange/FsInclude/master/src/Responsiveness/MultiplexModule.fs"
