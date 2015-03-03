@@ -40,7 +40,7 @@ module internal TestMultiplex =
     let ex = System.Exception ()
 
     let throwingFlow b =
-        flow {
+        multiplexer {
             if b then
                 raise ex
             else ()
@@ -69,7 +69,7 @@ module internal TestMultiplex =
         r,r1,r2,r3,r4,next,clear
 
     let delayedTask (d : int) v = (Task.Delay d).ContinueWith(fun _ -> v)
-    let delayedFlow (d : int) v = Flow.adaptTask (delayedTask d v)
+    let delayedFlow (d : int) v = Multiplexer.adaptTask (delayedTask d v)
 
     type SetOnDispose(nm : string, ri : int ref, next : unit -> int) =
         inherit BaseDisposable()
@@ -82,20 +82,20 @@ module internal TestMultiplex =
     [<Test>]
     let ``test return and return!`` () =
         let f =
-            flow {
+            multiplexer {
                 return 1
             }
 
-        let actual = Flow.run f
+        let actual = Multiplexer.run f
 
         eq 1 actual "return"
 
         let ff =
-            flow {
+            multiplexer {
                 return! f
             }
 
-        let actual = Flow.run ff
+        let actual = Multiplexer.run ff
 
         eq 1 actual "return!"
 
@@ -106,19 +106,19 @@ module internal TestMultiplex =
         let r,r1,r2,r3,r4,next,clear = getCounters ()
 
         let t (r : int ref) =
-            flow {
+            multiplexer {
                 r := next ()
                 return !r
             }
 
         let f =
-            flow {
+            multiplexer {
                 let! a = (t r1)
                 let! b = (t r2)
                 return a + b
             }
 
-        let actual = Flow.run f
+        let actual = Multiplexer.run f
 
         eq 3 actual "bind"
         eq 1 !r1    "bind, r1"
@@ -131,19 +131,19 @@ module internal TestMultiplex =
         let r,r1,r2,r3,r4,next,clear = getCounters ()
 
         let t (r : int ref) =
-            flow {
+            multiplexer {
                 r := next ()
                 return ()
             }
 
         let f =
-            flow {
+            multiplexer {
                 do! (t r1)
                 do! (t r2)
                 return !r1 + !r2
             }
 
-        let actual = Flow.run f
+        let actual = Multiplexer.run f
 
         eq 3 actual "combine"
         eq 1 !r1    "combine, r1"
@@ -156,13 +156,13 @@ module internal TestMultiplex =
         let r,r1,r2,r3,r4,next,clear = getCounters ()
 
         let t (r : int ref) =
-            flow {
+            multiplexer {
                 r := next ()
                 return !r
             }
 
         let f =
-            flow {
+            multiplexer {
                 let sum = ref 0
                 for x in 0..3 do
                     let! v = t r1
@@ -171,7 +171,7 @@ module internal TestMultiplex =
                 return !sum
             }
 
-        let actual = Flow.run f
+        let actual = Multiplexer.run f
 
         eq 16 actual    "for"
         eq 4 !r1        "for, r1"
@@ -183,13 +183,13 @@ module internal TestMultiplex =
         let r,r1,r2,r3,r4,next,clear = getCounters ()
 
         let t (r : int ref) =
-            flow {
+            multiplexer {
                 r := next ()
                 return !r
             }
 
         let f =
-            flow {
+            multiplexer {
                 let sum = ref 0
                 while !r1 < 4 do
                     let! v = t r1
@@ -198,7 +198,7 @@ module internal TestMultiplex =
                 return !sum
             }
 
-        let actual = Flow.run f
+        let actual = Multiplexer.run f
 
         eq 10 actual    "while"
         eq 4 !r1        "while, r1"
@@ -209,12 +209,12 @@ module internal TestMultiplex =
     let ``test delayed flow`` () =
         let elapsed, actual = time <| fun () ->
             let f =
-                flow {
+                multiplexer {
                     let! r = delayedFlow 200 2
                     return r + 1
                 }
 
-            Flow.run f
+            Multiplexer.run f
 
         eq 3 actual "Delayed flow"
         range 190L 240L elapsed "Delayed flow"
@@ -223,14 +223,14 @@ module internal TestMultiplex =
     let ``test child delayed flow`` () =
         let elapsed, actual = time <| fun () ->
             let f =
-                flow {
-                    let! r1a = delayedFlow 100 2 |> Flow.startChild
+                multiplexer {
+                    let! r1a = delayedFlow 100 2 |> Multiplexer.startChild
                     let! r2  = delayedFlow 200 4
                     let! r1  = r1a
                     return r1 + r2 + 1
                 }
 
-            Flow.run f
+            Multiplexer.run f
 
         eq 7 actual "Child delayed flow"
         range 190L 240L elapsed "Child delayed flow"
@@ -242,7 +242,7 @@ module internal TestMultiplex =
         let r,r1,r2,r3,r4,next,clear = getCounters ()
 
         let f b =
-            flow {
+            multiplexer {
                 clear ()
 
                 let result = ref false
@@ -260,14 +260,14 @@ module internal TestMultiplex =
                 return !result
             }
 
-        let actual = Flow.run (f false)
+        let actual = Multiplexer.run (f false)
 
         eq false actual                         "try..finally - success, actual"
         eq 1 !r1                                "try..finally - success, r1"
         eq 2 !r2                                "try..finally - success, r2"
         eq 3 !r3                                "try..finally - success, r3"
 
-        eqexn ex (fun () -> Flow.run (f true))  "try..finally - failure, actual"
+        eqexn ex (fun () -> Multiplexer.run (f true))  "try..finally - failure, actual"
         eq 1 !r1                                "try..finally - failure, r1"
         eq 2 !r2                                "try..finally - failure, r2"
         eq 0 !r3                                "try..finally - failure, r3"
@@ -280,7 +280,7 @@ module internal TestMultiplex =
         let r,r1,r2,r3,r4,next,clear = getCounters ()
 
         let f b =
-            flow {
+            multiplexer {
                 clear ()
 
                 let result = ref false
@@ -302,17 +302,17 @@ module internal TestMultiplex =
                 return !result
             }
 
-        let actual = Flow.run (f false)
+        let actual = Multiplexer.run (f false)
 
-        eq false actual                         "try..with - success, actual"
-        eq 0 !r1                                "try..with - success, r1"
-        eq 0 !r2                                "try..with - success, r2"
-        eq 1 !r3                                "try..with - success, r3"
+        eq false actual                                 "try..with - success, actual"
+        eq 0 !r1                                        "try..with - success, r1"
+        eq 0 !r2                                        "try..with - success, r2"
+        eq 1 !r3                                        "try..with - success, r3"
 
-        eqexn ex (fun () -> Flow.run (f true))  "try..with - failure, actual"
-        eq 1 !r1                                "try..with - failure, r1"
-        eq 2 !r2                                "try..with - failure, r2"
-        eq 0 !r3                                "try..with - failure, r3"
+        eqexn ex (fun () -> Multiplexer.run (f true))   "try..with - failure, actual"
+        eq 1 !r1                                        "try..with - failure, r1"
+        eq 2 !r2                                        "try..with - failure, r2"
+        eq 0 !r3                                        "try..with - failure, r3"
 
         ()
 
@@ -321,12 +321,12 @@ module internal TestMultiplex =
         let r,r1,r2,r3,r4,next,clear = getCounters ()
 
         let t =
-            flow {
+            multiplexer {
                 return new SetOnDispose ("r1", r1, next)
             }
 
         let u b =
-            flow {
+            multiplexer {
                 let result = ref false
 
                 use i2 = new SetOnDispose ("r2", r2, next)
@@ -336,7 +336,7 @@ module internal TestMultiplex =
             }
 
         let f b =
-            flow {
+            multiplexer {
                 clear ()
 
                 use i3 = new SetOnDispose ("r3", r3, next)
@@ -347,19 +347,19 @@ module internal TestMultiplex =
                 return result
             }
 
-        let actual = Flow.run (f false)
+        let actual = Multiplexer.run (f false)
 
-        eq false actual                         "use - success, actual"
-        eq 1 !r1                                "use - success, r1"
-        eq 2 !r2                                "use - success, r2"
-        eq 4 !r3                                "use - success, r3"
-        eq 3 !r4                                "use - success, r4"
+        eq false actual                                 "use - success, actual"
+        eq 1 !r1                                        "use - success, r1"
+        eq 2 !r2                                        "use - success, r2"
+        eq 4 !r3                                        "use - success, r3"
+        eq 3 !r4                                        "use - success, r4"
 
-        eqexn ex (fun () -> Flow.run (f true))  "use - failure, actual"
-        eq 1 !r1                                "use - failure, r1"
-        eq 2 !r2                                "use - failure, r2"
-        eq 3 !r3                                "use - failure, r3"
-        eq 0 !r4                                "use - failure, r4"
+        eqexn ex (fun () -> Multiplexer.run (f true))   "use - failure, actual"
+        eq 1 !r1                                        "use - failure, r1"
+        eq 2 !r2                                        "use - failure, r2"
+        eq 3 !r3                                        "use - failure, r3"
+        eq 0 !r4                                        "use - failure, r4"
 
         ()
 
@@ -368,7 +368,7 @@ module internal TestMultiplex =
         let r,r1,r2,r3,r4,next,clear = getCounters ()
 
         let t (nm : string) (ir : int ref) (d : int) (r : int) (v : int) =
-            flow {
+            multiplexer {
                 use disp = new SetOnDispose (nm, ir, next)
                 let! tt = delayedFlow d r
 
@@ -379,13 +379,13 @@ module internal TestMultiplex =
             }
 
         let f v =
-            flow {
+            multiplexer {
                 clear ()
 
                 use disp = new SetOnDispose ("r3", r3, next)
 
-                let! t1a = t "r1" r1 10  1 v |> Flow.startChild
-                let! t2a = t "r2" r2 100 2 v |> Flow.startChild
+                let! t1a = t "r1" r1 10  1 v |> Multiplexer.startChild
+                let! t2a = t "r2" r2 100 2 v |> Multiplexer.startChild
 
                 let! t1 = t1a
                 let! t2 = t2a
@@ -395,7 +395,7 @@ module internal TestMultiplex =
                 return t1 + t2
             }
 
-        let actual = Flow.run (f 0)
+        let actual = Multiplexer.run (f 0)
 
         eq 3 actual                             "child handlers - variant 0"
         eq 1 !r1                                "child handlers - variant 0, r1"
@@ -404,23 +404,23 @@ module internal TestMultiplex =
         eq 3 !r4                                "child handlers - variant 0, r4"
 
 
-        eqexn ex (fun () -> Flow.run (f 1))     "child handlers - variant 1"
-        eq 1 !r1                                "child handlers - variant 1, r1"
-        eq 3 !r2                                "child handlers - variant 1, r2"
-        eq 2 !r3                                "child handlers - variant 1, r3"
-        eq 0 !r4                                "child handlers - variant 1, r4"
+        eqexn ex (fun () -> Multiplexer.run (f 1))  "child handlers - variant 1"
+        eq 1 !r1                                    "child handlers - variant 1, r1"
+        eq 3 !r2                                    "child handlers - variant 1, r2"
+        eq 2 !r3                                    "child handlers - variant 1, r3"
+        eq 0 !r4                                    "child handlers - variant 1, r4"
 
-        eqexn ex (fun () -> Flow.run (f 2))     "child handlers - variant 2"
-        eq 1 !r1                                "child handlers - variant 2, r1"
-        eq 2 !r2                                "child handlers - variant 2, r2"
-        eq 3 !r3                                "child handlers - variant 2, r3"
-        eq 0 !r4                                "child handlers - variant 2, r4"
+        eqexn ex (fun () -> Multiplexer.run (f 2))  "child handlers - variant 2"
+        eq 1 !r1                                    "child handlers - variant 2, r1"
+        eq 2 !r2                                    "child handlers - variant 2, r2"
+        eq 3 !r3                                    "child handlers - variant 2, r3"
+        eq 0 !r4                                    "child handlers - variant 2, r4"
 
-        eqexn ex (fun () -> Flow.run (f 3))     "child handlers - variant 3"
-        eq 1 !r1                                "child handlers - variant 3, r1"
-        eq 3 !r2                                "child handlers - variant 3, r2"
-        eq 2 !r3                                "child handlers - variant 3, r3"
-        eq 0 !r4                                "child handlers - variant 3, r4"
+        eqexn ex (fun () -> Multiplexer.run (f 3))  "child handlers - variant 3"
+        eq 1 !r1                                    "child handlers - variant 3, r1"
+        eq 3 !r2                                    "child handlers - variant 3, r2"
+        eq 2 !r3                                    "child handlers - variant 3, r3"
+        eq 0 !r4                                    "child handlers - variant 3, r4"
 
         ()
 
@@ -429,17 +429,17 @@ module internal TestMultiplex =
         let expected = [|1uy;2uy;3uy;4uy|]
 
         let f =
-            flow {
+            multiplexer {
                 use ms = new System.IO.MemoryStream (expected)
                 let buf = Array.zeroCreate 100
                 let ar = ms.BeginRead (buf, 0, buf.Length, null, null)
 
-                let! read = Flow.adaptLegacyAsync ar (fun ar -> ms.EndRead ar)
+                let! read = Multiplexer.adaptLegacyAsync ar (fun ar -> ms.EndRead ar)
 
                 return read, buf
             }
 
-        let read, buf= Flow.run f
+        let read, buf= Multiplexer.run f
 
         eq expected.Length  read        "legacy async, read"
         eq 100              buf.Length  "legacy async, buf.Length"
