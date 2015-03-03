@@ -22,23 +22,31 @@ open Included.FsInclude.Multiplex
 [<AutoOpen>]
 module internal Extensions =
     type Stream with
-        member x.WriteFlow (bytes, start, length) : Flow<unit> =
+        member x.WriteFlow (bytes, start, length) : Multiplexer<unit> =
             let ar = x.BeginWrite (bytes, start, length, null, null)
-            Flow.adaptLegacyAsync ar x.EndWrite
+            Multiplexer.adaptLegacyAsync ar x.EndWrite
 
     type HttpListener with
-        member x.GetContextFlow () : Flow<HttpListenerContext> =
+        member x.GetContextFlow () : Multiplexer<HttpListenerContext> =
             let ar = x.BeginGetContext (null, null)
-            Flow.adaptLegacyAsync ar x.EndGetContext
+            Multiplexer.adaptLegacyAsync ar x.EndGetContext
 
 [<EntryPoint>]
 let main argv =
 
-    let delay (d : int) : Flow<unit> =
-        Flow.adaptUnitTask (Task.Delay d)
+    let seq = ref 0
+    let rnd = Random 1974031
 
-    let writeBytes (batchSize : int) (stream : Stream) (bytes : byte[]) : Flow<unit> =
-        flow {
+    let next ()     = 
+        seq := !seq + 1
+        !seq
+    let random ()   = rnd.NextDouble ()
+
+    let delay (d : int) : Multiplexer<unit> =
+        Multiplexer.adaptUnitTask (Task.Delay d)
+
+    let writeBytes (batchSize : int) (stream : Stream) (bytes : byte[]) : Multiplexer<unit> =
+        multiplexer {
             let batch = Array.zeroCreate batchSize
             let e = bytes.Length - 1
             for i in 0..batchSize..e do
@@ -49,7 +57,7 @@ let main argv =
         }
 
     let webRequest (context : HttpListenerContext) =
-        flow {
+        multiplexer {
             try
                 let req = context.Request
                 use res = context.Response
@@ -59,9 +67,12 @@ let main argv =
 
                 let dt  = DateTime.Now
 
-                do! delay 5000
+                let d   = int <| random () * 5000.
+                let s   = next ()
 
-                let str     = sprintf "<html><title>Hello</title><body>%A,%A</body></html>" dt DateTime.Now
+                do! delay d
+
+                let str     = sprintf "<html><title>Hello</title><body>Seq: %d, Delay: %d, Then: %A, Now: %A</body></html>" s d dt DateTime.Now
                 let bytes   = System.Text.Encoding.UTF8.GetBytes str
 
                 res.ContentLength64 <- bytes.LongLength
@@ -75,7 +86,7 @@ let main argv =
 
 
     let webServer =
-        flow {
+        multiplexer {
             use listener = new HttpListener ()
             let prefixes = [|"http://localhost:8080/"|]
 
@@ -89,7 +100,7 @@ let main argv =
             while true do
                 let! context    = listener.GetContextFlow ()
 
-                let! child      = webRequest context |> Flow.startChild
+                let! child      = webRequest context |> Multiplexer.startChild
 
                 ()
 
@@ -97,4 +108,4 @@ let main argv =
         }
 
 
-    Flow.run webServer
+    Multiplexer.run webServer

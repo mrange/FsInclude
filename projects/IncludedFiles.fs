@@ -256,18 +256,18 @@ module internal Multiplex =
     open System.Threading.Tasks
 
     module Details =
-        type FlowInterrupt =
-            | FlowCancelled
+        type MultiplexerInterrupt =
+            | MultiplexerCancelled
             | Exception     of exn
 
-        type FlowHandler = FlowInterrupt -> bool
+        type MultiplexerHandler = MultiplexerInterrupt -> bool
 
-        type FlowContinuation = int->unit
+        type MultiplexerContinuation = int->unit
 
         [<NoEquality;NoComparison;Sealed>]
-        type FlowExecutor(ctx : FlowContext) as x =
+        type MultiplexerExecutor(ctx : MultiplexerContext) as x =
 
-            let mutable unprotected_handlers : FlowHandler list = []
+            let mutable unprotected_handlers : MultiplexerHandler list = []
 
             do
                 ctx.AddExecutor x
@@ -277,7 +277,7 @@ module internal Multiplex =
             member x.CheckCallingThread () =
                 ctx.CheckCallingThread ()
 
-            member x.Push (handler : FlowHandler) : unit =
+            member x.Push (handler : MultiplexerHandler) : unit =
                 x.CheckCallingThread ()
 
                 if ctx.IsDisposed then ()   // TODO: Trace?
@@ -295,7 +295,7 @@ module internal Multiplex =
                 x.Push (
                     fun fi ->
                         match fi with
-                        | FlowCancelled -> true
+                        | MultiplexerCancelled -> true
                         | Exception e   ->
                             handler e
                             false
@@ -312,7 +312,7 @@ module internal Multiplex =
             member x.RaiseException (e : exn) : exn option =
                 x.CheckCallingThread ()
 
-                let rec raiseException (e : exn) (hs : FlowHandler list) : (exn option)*(FlowHandler list) =
+                let rec raiseException (e : exn) (hs : MultiplexerHandler list) : (exn option)*(MultiplexerHandler list) =
                     match hs with
                     | []    -> (Some e),[]
                     | h::hh ->
@@ -340,13 +340,13 @@ module internal Multiplex =
             member x.CancelOperation () : exn list =
                 x.CheckCallingThread ()
 
-                let rec cancelOperation (exns : exn list) (hs : FlowHandler list) : exn list =
+                let rec cancelOperation (exns : exn list) (hs : MultiplexerHandler list) : exn list =
                     match hs with
                     | []    -> exns
                     | h::hh ->
                         let result =
                             try
-                                ignore <| h FlowCancelled
+                                ignore <| h MultiplexerCancelled
                                 exns
                             with
                             | e -> e::exns
@@ -361,15 +361,15 @@ module internal Multiplex =
                 exns
 
 
-        and [<NoEquality;NoComparison;Sealed>] FlowContext() =
+        and [<NoEquality;NoComparison;Sealed>] MultiplexerContext() =
             inherit BaseDisposable()
 
             let threadId                    = Thread.CurrentThread.ManagedThreadId
-            let unprotected_continuations   = Dictionary<int, FlowExecutor*WaitHandle*FlowContinuation>()
+            let unprotected_continuations   = Dictionary<int, MultiplexerExecutor*WaitHandle*MultiplexerContinuation>()
 
             let mutable unprotected_nextId  = 0
 
-            let unprotected_executors       = ResizeArray<FlowExecutor>()
+            let unprotected_executors       = ResizeArray<MultiplexerExecutor>()
 
             let unprotected_hasContinuations () = unprotected_continuations.Count > 0
 
@@ -389,7 +389,7 @@ module internal Multiplex =
                 let id = Thread.CurrentThread.ManagedThreadId
                 if id <> threadId then failwithf "Wrong calling thread, expected: %d, actual: %d" threadId id
 
-            member x.RegisterContinuation (exec : FlowExecutor) (waitHandle : WaitHandle) (continuation : FlowContinuation) : unit =
+            member x.RegisterContinuation (exec : MultiplexerExecutor) (waitHandle : WaitHandle) (continuation : MultiplexerContinuation) : unit =
                 x.CheckCallingThread ()
 
                 // unprotected access ok as we checked calling thread
@@ -405,7 +405,7 @@ module internal Multiplex =
                 // unprotected access ok as we checked calling thread
                 ignore <| unprotected_continuations.Remove key
 
-            member x.UnregisterAllMatchingContinuations (ctx : FlowContext) : unit =
+            member x.UnregisterAllMatchingContinuations (ctx : MultiplexerContext) : unit =
                 x.CheckCallingThread ()
 
                 // unprotected access ok as we checked calling thread
@@ -464,7 +464,7 @@ module internal Multiplex =
                 while x.AwaitContinuations exe do
                     ()
 
-            member x.AddExecutor (exec : FlowExecutor) : unit =
+            member x.AddExecutor (exec : MultiplexerExecutor) : unit =
                 x.CheckCallingThread ()
 
                 // unprotected access ok as we checked calling thread
@@ -491,12 +491,12 @@ module internal Multiplex =
 
     open Details
 
-    type Flow<'T> = FlowExecutor*Continuation<'T> -> unit
+    type Multiplexer<'T> = MultiplexerExecutor*Continuation<'T> -> unit
 
     module ComputationExpression =
-        module FlowModule =
+        module MultiplexerModule =
 
-            let bind (t : Flow<'T>) (fu : 'T -> Flow<'U>) : Flow<'U> =
+            let bind (t : Multiplexer<'T>) (fu : 'T -> Multiplexer<'U>) : Multiplexer<'U> =
                 fun (exec, cont) ->
                     exec.CheckCallingThread()
                     let tcont v =
@@ -505,7 +505,7 @@ module internal Multiplex =
                         u (exec, cont)
 
                     t (exec, tcont)
-            let combine (t : Flow<unit>) (u : Flow<'T>) : Flow<'T> =
+            let combine (t : Multiplexer<unit>) (u : Multiplexer<'T>) : Multiplexer<'T> =
                 fun (exec, cont) ->
                     exec.CheckCallingThread()
                     let tcont _ =
@@ -514,23 +514,23 @@ module internal Multiplex =
 
                     t (exec, tcont)
 
-            let delay (dt : unit -> Flow<'T>) : Flow<'T> =
+            let delay (dt : unit -> Multiplexer<'T>) : Multiplexer<'T> =
                 fun (exec, cont) ->
                     exec.CheckCallingThread()
                     let t = dt ()
                     t (exec, cont)
 
-            let returnValue (v : 'T) : Flow<'T> =
+            let returnValue (v : 'T) : Multiplexer<'T> =
                 fun (exec, cont) ->
                     exec.CheckCallingThread()
                     cont v
-            let returnFrom (t : Flow<'T>) : Flow<'T> = t
-            let zero : Flow<unit> =
+            let returnFrom (t : Multiplexer<'T>) : Multiplexer<'T> = t
+            let zero : Multiplexer<unit> =
                 fun (exec, cont) ->
                     exec.CheckCallingThread()
                     cont ()
 
-            let forEach (s : seq<'T>) (ft : 'T -> Flow<unit>) : Flow<unit> =
+            let forEach (s : seq<'T>) (ft : 'T -> Multiplexer<unit>) : Multiplexer<unit> =
                 fun (exec, cont) ->
                     exec.CheckCallingThread()
 
@@ -548,7 +548,7 @@ module internal Multiplex =
 
                         ic ()
 
-            let whileDo (e : unit -> bool) (t : Flow<unit>) : Flow<unit> =
+            let whileDo (e : unit -> bool) (t : Multiplexer<unit>) : Multiplexer<unit> =
                 fun (exec, cont) ->
                     exec.CheckCallingThread()
 
@@ -561,7 +561,7 @@ module internal Multiplex =
 
                     ic ()
 
-            let using (d : #IDisposable) (ft : #IDisposable -> Flow<'T>) : Flow<'T>=
+            let using (d : #IDisposable) (ft : #IDisposable -> Multiplexer<'T>) : Multiplexer<'T>=
                 fun (exec, cont) ->
                     exec.CheckCallingThread()
 
@@ -576,7 +576,7 @@ module internal Multiplex =
                         cont v
 
                     t (exec, ic)
-            let tryFinally (t : Flow<'T>) (handler : unit->unit) : Flow<'T> =
+            let tryFinally (t : Multiplexer<'T>) (handler : unit->unit) : Multiplexer<'T> =
                 fun (exec, cont) ->
                     exec.CheckCallingThread()
 
@@ -590,7 +590,7 @@ module internal Multiplex =
 
 
                     t (exec, ic)
-            let tryWith (t : Flow<'T>) (fu : exn->Flow<'T>) : Flow<'T> =
+            let tryWith (t : Multiplexer<'T>) (fu : exn->Multiplexer<'T>) : Multiplexer<'T> =
                 fun (exec, cont) ->
                     exec.CheckCallingThread()
 
@@ -607,33 +607,33 @@ module internal Multiplex =
 
                     t (exec, ic)
 
-        type FlowBuilder() =
+        type MultiplexerBuilder() =
 
-            member inline x.Bind(t,fu)      = FlowModule.bind t fu
-            member inline x.Combine(t,u)    = FlowModule.combine t u
+            member inline x.Bind(t,fu)      = MultiplexerModule.bind t fu
+            member inline x.Combine(t,u)    = MultiplexerModule.combine t u
 
-            member inline x.Delay(dt)       = FlowModule.delay dt
+            member inline x.Delay(dt)       = MultiplexerModule.delay dt
 
-            member inline x.Return(v)       = FlowModule.returnValue v
-            member inline x.ReturnFrom(t)   = FlowModule.returnFrom t
-            member inline x.Zero()          = FlowModule.zero
+            member inline x.Return(v)       = MultiplexerModule.returnValue v
+            member inline x.ReturnFrom(t)   = MultiplexerModule.returnFrom t
+            member inline x.Zero()          = MultiplexerModule.zero
 
-            member inline x.For(s,ft)       = FlowModule.forEach s ft
-            member inline x.While(g,t)      = FlowModule.whileDo g t
+            member inline x.For(s,ft)       = MultiplexerModule.forEach s ft
+            member inline x.While(g,t)      = MultiplexerModule.whileDo g t
 
-            member inline x.Using(t,a)      = FlowModule.using t a
-            member inline x.TryFinally(t,a) = FlowModule.tryFinally t a
-            member inline x.TryWith(t,a)    = FlowModule.tryWith t a
+            member inline x.Using(t,a)      = MultiplexerModule.using t a
+            member inline x.TryFinally(t,a) = MultiplexerModule.tryFinally t a
+            member inline x.TryWith(t,a)    = MultiplexerModule.tryWith t a
 
     open ComputationExpression
 
-    let flow = FlowBuilder ()
+    let multiplexer = MultiplexerBuilder ()
 
-    module Flow =
+    module Multiplexer =
 
-        let run (t : Flow<'T>) : 'T =
-            use ctx     = new FlowContext()
-            let exec    = FlowExecutor(ctx)
+        let run (t : Multiplexer<'T>) : 'T =
+            use ctx     = new MultiplexerContext()
+            let exec    = MultiplexerExecutor(ctx)
 
             let result = ref None
 
@@ -652,13 +652,13 @@ module internal Multiplex =
 
             result.Value.Value
 
-        let startChild (t : Flow<'T>) : Flow<Flow<'T>> =
+        let startChild (t : Multiplexer<'T>) : Multiplexer<Multiplexer<'T>> =
             fun (exec, cont) ->
                 exec.CheckCallingThread()
                 let rcont   = ref None
                 let rvalue  = ref None
 
-                let child : Flow<'T> =
+                let child : Multiplexer<'T> =
                     fun (exec, cont) ->
                         exec.CheckCallingThread ()
 
@@ -675,12 +675,12 @@ module internal Multiplex =
                     | Some c    -> c v
                     | _         -> ()
 
-                let cexec = FlowExecutor(exec.Context)
+                let cexec = MultiplexerExecutor(exec.Context)
                 t (cexec, icont)
 
                 cont child
 
-        let adaptWaitHandle (waitHandle : WaitHandle) : Flow<unit> =
+        let adaptWaitHandle (waitHandle : WaitHandle) : Multiplexer<unit> =
             fun (exec, cont) ->
                 exec.CheckCallingThread()
 
@@ -691,7 +691,7 @@ module internal Multiplex =
 
                 exec.Context.RegisterContinuation exec waitHandle ic
 
-        let adaptLegacyAsync (ar : IAsyncResult) (endAsync : IAsyncResult->'T) : Flow<'T> =
+        let adaptLegacyAsync (ar : IAsyncResult) (endAsync : IAsyncResult->'T) : Multiplexer<'T> =
             fun (exec, cont) ->
                 exec.CheckCallingThread ()
 
@@ -702,7 +702,7 @@ module internal Multiplex =
 
                 exec.Context.RegisterContinuation exec ar.AsyncWaitHandle ic
 
-        let adaptTask (t : Task<'T>) : Flow<'T> =
+        let adaptTask (t : Task<'T>) : Multiplexer<'T> =
             fun (exec, cont) ->
                 exec.CheckCallingThread()
                 let inline tryRun () =
@@ -725,7 +725,7 @@ module internal Multiplex =
 
                     exec.Context.RegisterContinuation exec ar.AsyncWaitHandle ic
 
-        let adaptUnitTask (t : Task) : Flow<unit> =
+        let adaptUnitTask (t : Task) : Multiplexer<unit> =
             fun (exec, cont) ->
                 exec.CheckCallingThread()
                 let inline tryRun () =
@@ -751,7 +751,7 @@ module internal Multiplex =
 namespace Included
 module IncludeMetaData =
     [<Literal>]
-    let IncludeDate = "2015-02-18T23:11:29"
+    let IncludeDate = "2015-03-03T22:42:30"
     [<Literal>]
     let Include_0 = @"https://raw.githubusercontent.com/mrange/FsInclude/master/src/Modules/BasicModule.fs"
     [<Literal>]
@@ -760,4 +760,3 @@ module IncludeMetaData =
     let Include_2 = @"https://raw.githubusercontent.com/mrange/FsInclude/master/src/Common/Common.fs"
     [<Literal>]
     let Include_3 = @"https://raw.githubusercontent.com/mrange/FsInclude/master/src/Responsiveness/MultiplexModule.fs"
-
